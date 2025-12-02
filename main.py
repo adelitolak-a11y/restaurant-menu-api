@@ -277,12 +277,21 @@ async def generate_menu(
     color3: str = Form(...),
     qr_mode: str = Form("unique"),
     menu_file: UploadFile = File(None),
-    manual_menu: str = Form(None)
+    manual_menu: str = Form(None)  # ← NOUVEAU : pour la saisie manuelle
 ):
     """Génère les 3 fichiers JSON nécessaires"""
     try:
         # 1. Obtenir les données du menu
-        if menu_file:
+        if manual_menu:
+            # Mode saisie manuelle
+            try:
+                menu_data = json.loads(manual_menu)
+                print(f"✅ Menu manuel reçu avec {sum(len(v) for v in menu_data.values())} articles")
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=400, detail=f"JSON manuel invalide: {str(e)}")
+        
+        elif menu_file:
+            # Mode PDF
             if not menu_file.filename.lower().endswith('.pdf'):
                 raise HTTPException(status_code=400, detail="Le fichier doit être un PDF")
             
@@ -293,9 +302,7 @@ async def generate_menu(
                 raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
             
             menu_data = classify_menu_with_groq(text)
-        
-        elif manual_menu:
-            menu_data = json.loads(manual_menu)
+            print(f"✅ Menu extrait du PDF avec {sum(len(v) for v in menu_data.values())} articles")
         
         else:
             raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF soit un menu manuel")
