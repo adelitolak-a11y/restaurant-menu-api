@@ -104,7 +104,7 @@ RÈGLES:
         raise HTTPException(status_code=500, detail=f"Erreur Groq API: {str(e)}")
 
 
-def generate_backend_json(restaurant_name: str, qr_mode: str, odoo_config: Dict = None) -> Dict:
+def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odoo_config: Dict = None) -> Dict:
     """Génère le fichier backend.json"""
     
     backend = {
@@ -132,10 +132,10 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, odoo_config: Dict 
             "lyfPosKey": ""
         },
         "address": {
-            "street": "",
-            "zipCode": "",
-            "city": "",
-            "country": "France"
+            "street": address.get("street", ""),
+            "zipCode": address.get("zip_code", ""),
+            "city": address.get("city", ""),
+            "country": address.get("country", "France")
         },
         "menu": {
             "menus": [],
@@ -276,6 +276,10 @@ async def generate_menu(
     color2: str = Form(...),
     color3: str = Form(...),
     qr_mode: str = Form("unique"),
+    street: str = Form(""),
+    zip_code: str = Form(""),
+    city: str = Form(""),
+    country: str = Form("France"),
     menu_file: UploadFile = File(None),
     manual_menu: str = Form(None)  # ← NOUVEAU : pour la saisie manuelle
 ):
@@ -307,10 +311,18 @@ async def generate_menu(
         else:
             raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF soit un menu manuel")
         
-        # 2. Générer les 3 fichiers JSON
+        # 2. Préparer l'adresse
+        address = {
+            "street": street,
+            "zip_code": zip_code,
+            "city": city,
+            "country": country
+        }
+        
+        # 3. Générer les 3 fichiers JSON
         colors = [color1, color2, color3]
         
-        backend_json = generate_backend_json(restaurant_name, qr_mode)
+        backend_json = generate_backend_json(restaurant_name, qr_mode, address)
         frontend_json = generate_frontend_json(restaurant_name, colors)
         articles_json = generate_articles_json(menu_data, backend_json["restaurantId"])
         
@@ -318,6 +330,7 @@ async def generate_menu(
         return {
             "success": True,
             "restaurant_id": backend_json["restaurantId"],
+            "address": address,
             "files": {
                 "backend": json.dumps(backend_json, indent=2, ensure_ascii=False),
                 "frontend": json.dumps(frontend_json, indent=2, ensure_ascii=False),
