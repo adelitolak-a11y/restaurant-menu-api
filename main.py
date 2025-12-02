@@ -4,31 +4,29 @@ import fitz  # PyMuPDF
 import json
 import os
 from groq import Groq
-from typing import Dict
+from typing import Dict, List
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI(title="Restaurant Menu Generator API", version="2.0")
+app = FastAPI(title="Restaurant Menu Generator API", version="3.0")
 
-# Configuration CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En production, remplace par ton domaine WordPress
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialiser le client Groq
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     raise ValueError("⚠️  GROQ_API_KEY non définie dans .env")
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Configuration Odoo (à remplir)
+# Configuration Odoo
 ODOO_URL = os.getenv("ODOO_URL", "https://ton-instance.odoo.com")
 ODOO_DB = os.getenv("ODOO_DB", "nom_base")
 ODOO_USERNAME = os.getenv("ODOO_USERNAME", "admin")
@@ -59,37 +57,26 @@ TEXTE DU MENU:
 Réponds UNIQUEMENT avec un JSON dans ce format (sans texte avant ou après):
 {{
   "entrees": [
-    {{"nom": "Soupe à l'oignon", "prix": 8.50, "tva": "10%"}},
-    {{"nom": "Salade César", "prix": 12.00, "tva": "10%", "description": "Salade verte, tomates, poulet frit"}}
+    {{"nom": "Soupe à l'oignon", "prix": 8.50, "description": "..."}}
   ],
   "plats": [
-    {{"nom": "Steak frites", "prix": 22.00, "tva": "10%"}},
-    {{"nom": "Saumon grillé", "prix": 24.50, "tva": "10%"}}
+    {{"nom": "Steak frites", "prix": 22.00, "description": "..."}}
   ],
   "desserts": [
-    {{"nom": "Tarte tatin", "prix": 7.50, "tva": "10%", "description": "Tarte aux pommes de saison"}},
-    {{"nom": "Crème brûlée", "prix": 8.00, "tva": "10%"}}
+    {{"nom": "Tarte tatin", "prix": 7.50, "description": "..."}}
   ],
   "boissons_soft": [
-    {{"nom": "Coca-Cola", "prix": 4.50, "tva": "10%"}},
-    {{"nom": "Eau minérale", "prix": 3.50, "tva": "10%"}}
+    {{"nom": "Coca-Cola", "prix": 4.50}}
   ],
   "boissons_alcoolisees": [
-    {{"nom": "Vin rouge (verre)", "prix": 6.00, "tva": "20%"}},
-    {{"nom": "Bière pression", "prix": 5.50, "tva": "20%"}}
+    {{"nom": "Vin rouge (verre)", "prix": 6.00}}
   ]
 }}
 
 RÈGLES:
 - N'utilise JAMAIS de guillemets dans les noms de plats (remplace " par ')
-- Assure-toi que le JSON est valide et bien formaté
 - Extrais TOUS les plats et boissons avec leurs prix
-- Tu peux créer d'autres catégories si nécessaire ("A partager", "Cocktails", etc.)
 - Si un prix a une virgule (12,50), convertis en point (12.50)
-- Ajoute le champ "description" quand c'est pertinent
-- Si plusieurs variantes d'un produit (ex: "jus pressé, orange, citron"), crée 2 produits distincts
-- Classe chaque item dans la bonne catégorie
-- TVA: 10% pour nourriture/soft, 20% pour alcool
 - Retourne UNIQUEMENT le JSON, rien d'autre"""
 
     try:
@@ -102,90 +89,182 @@ RÈGLES:
         
         response_text = response.choices[0].message.content.strip()
         
-        # Nettoyer le JSON
         if "```json" in response_text:
             response_text = response_text.split("```json")[1].split("```")[0]
         elif "```" in response_text:
             response_text = response_text.split("```")[1].split("```")[0]
         
-        # Parser le JSON
         menu_json = json.loads(response_text)
         return menu_json
         
     except json.JSONDecodeError as e:
         print(f"⚠️  JSON invalide reçu de Groq")
-        print(f"Réponse brute:\n{response_text}\n")
         raise HTTPException(status_code=500, detail=f"Erreur parsing JSON: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Groq API: {str(e)}")
 
 
-def create_restaurant_in_odoo(restaurant_data: Dict) -> Dict:
-    """Crée un restaurant dans Odoo"""
-    if not ODOO_PASSWORD:
-        return {"success": False, "message": "Odoo non configuré"}
+def generate_backend_json(restaurant_name: str, qr_mode: str, odoo_config: Dict = None) -> Dict:
+    """Génère le fichier backend.json"""
     
-    try:
-        # 1. Authentification Odoo
-        auth_url = f"{ODOO_URL}/web/session/authenticate"
-        auth_data = {
-            "jsonrpc": "2.0",
-            "params": {
-                "db": ODOO_DB,
-                "login": ODOO_USERNAME,
-                "password": ODOO_PASSWORD
+    backend = {
+        "type": "Odoo",
+        "odooUrl": odoo_config.get("url", ODOO_URL) if odoo_config else ODOO_URL,
+        "odooDb": odoo_config.get("db", ODOO_DB) if odoo_config else ODOO_DB,
+        "odooLogin": odoo_config.get("login", ODOO_USERNAME) if odoo_config else ODOO_USERNAME,
+        "odooPwd": odoo_config.get("password", ODOO_PASSWORD) if odoo_config else ODOO_PASSWORD,
+        "provenanceContact": "Pleazze",
+        "defaultWaiterId": 2,
+        "odooCompanyId": "",
+        "odooTipId": 3134,
+        "sms": {
+            "type": "SMSLinker",
+            "ident": {
+                "subject": f"{restaurant_name}",
+                "content": "Votre code d'identification : $CODE$"
             }
-        }
-        
-        session = requests.Session()
-        auth_response = session.post(auth_url, json=auth_data)
-        
-        if auth_response.status_code != 200:
-            return {"success": False, "message": "Échec authentification Odoo"}
-        
-        # 2. Créer le restaurant (res.partner)
-        create_url = f"{ODOO_URL}/web/dataset/call_kw"
-        create_data = {
-            "jsonrpc": "2.0",
-            "params": {
-                "model": "res.partner",
-                "method": "create",
-                "args": [{
-                    "name": restaurant_data["restaurant"],
-                    "is_company": True,
-                    "customer_rank": 1,
-                    # Ajoute d'autres champs selon ton modèle Odoo
-                }],
-                "kwargs": {}
+        },
+        "payment": {
+            "paymentId": "4",
+            "stripe_secret_key": "sk_test_...",
+            "lyfUrl": "https://sandbox-webpos.lyf.eu/fr/plugin/PaymentCb.aspx",
+            "lyfPosId": "",
+            "lyfPosKey": ""
+        },
+        "address": {
+            "street": "",
+            "zipCode": "",
+            "city": "",
+            "country": "France"
+        },
+        "menu": {
+            "menus": [],
+            "sections": [],
+            "drinks": [],
+            "courses": {
+                "choicesForCourse": {},
+                "courseByGroup": {},
+                "courseLabels": {
+                    "3": {"fr": "Entrée", "en": "Starter", "class": "overt-courseId", "courseId": "3"},
+                    "5": {"fr": "Plat", "en": "Main", "class": "obleucl-courseId", "courseId": "5"},
+                    "7": {"fr": "Dessert", "en": "Dessert", "class": "oorange-courseId", "courseId": "7"}
+                },
+                "courseOrder": ["3", "5", "7"]
             }
-        }
-        
-        create_response = session.post(create_url, json=create_data)
-        result = create_response.json()
-        
-        if "result" in result:
-            partner_id = result["result"]
-            return {
-                "success": True,
-                "partner_id": partner_id,
-                "message": f"Restaurant créé dans Odoo (ID: {partner_id})"
+        },
+        "restaurantName": restaurant_name,
+        "restaurantId": restaurant_name.lower().replace(" ", "_"),
+        "supervisorRole": "manager",
+        "qrMode": qr_mode
+    }
+    
+    return backend
+
+
+def generate_frontend_json(restaurant_name: str, colors: List[str]) -> Dict:
+    """Génère le fichier frontend.json"""
+    
+    frontend = {
+        "home": {
+            "banners": [{
+                "src": "/assets/img/banners/banner.png",
+                "title": {
+                    "fr": f"Bienvenue chez {restaurant_name}",
+                    "en": f"Welcome to {restaurant_name}"
+                }
+            }],
+            "blocs": [{
+                "type": "text",
+                "text": {
+                    "fr": f"Découvrez notre carte et commandez directement depuis votre table via QR code.",
+                    "en": f"Discover our menu and order directly from your table via QR code."
+                },
+                "classes": "none"
+            }]
+        },
+        "menu": {
+            "banner": {
+                "src": "/assets/img/formule-background.png"
             }
-        else:
-            return {"success": False, "message": "Erreur création restaurant"}
+        },
+        "styles": {
+            "colors": {
+                "primary": colors[0],
+                "accent": colors[1],
+                "footer": colors[2]
+            }
+        },
+        "payment": {
+            "stripe_public_key": "pk_test_..."
+        },
+        "discountPercent": 0.05
+    }
+    
+    return frontend
+
+
+def generate_articles_json(menu_data: Dict, restaurant_id: str) -> List[Dict]:
+    """Génère le fichier articles.json à partir du menu"""
+    
+    articles = []
+    current_id = 4000
+    
+    # Mapping des catégories vers les pos_categ_id
+    category_mapping = {
+        "entrees": {"id": 17, "name": "NOURRITURE / ENTREES", "tva": 42, "course": "3"},
+        "plats": {"id": 18, "name": "NOURRITURE / PLATS", "tva": 42, "course": "5"},
+        "desserts": {"id": 19, "name": "NOURRITURE / DESSERTS", "tva": 42, "course": "7"},
+        "boissons_soft": {"id": 6, "name": "BOISSONS / SOFTS-EAUX", "tva": 42, "course": "1"},
+        "boissons_alcoolisees": {"id": 4, "name": "BOISSONS / ALCOOLS", "tva": 41, "course": "1"}
+    }
+    
+    for category, items in menu_data.items():
+        if category not in category_mapping:
+            continue
             
-    except Exception as e:
-        return {"success": False, "message": f"Erreur Odoo: {str(e)}"}
+        cat_info = category_mapping[category]
+        
+        for idx, item in enumerate(items):
+            article = {
+                "id": current_id,
+                "name": item["nom"],
+                "display_name": item["nom"],
+                "description": False,
+                "description_sale": item.get("description", False),
+                "list_price": item["prix"],
+                "taxes_id": [cat_info["tva"]],
+                "standard_price": 0,
+                "pos_categ_id": [cat_info["id"], cat_info["name"]],
+                "sale_area": [],
+                "image_512": False,
+                "is_pack": False,
+                "menu_ids": [],
+                "only_menu": False,
+                "product_tag_ids": [],
+                "product_rank": [1, "Apéritif 1"],
+                "priority": "0",
+                "sequence": idx,
+                "extra_cost": [],
+                "en_GB": {
+                    "display_name": item["nom"],
+                    "pos_categ_id": [cat_info["id"], cat_info["name"]],
+                    "description_sale": item.get("description", False)
+                }
+            }
+            
+            articles.append(article)
+            current_id += 1
+    
+    return articles
 
 
 @app.get("/")
 def home():
     return {
-        "message": "🍽️ API Restaurant Menu Generator",
-        "version": "2.0",
+        "message": "🍽️ API Restaurant Menu Generator v3.0",
+        "version": "3.0",
         "endpoints": {
-            "/generate-menu": "POST - Génère le JSON depuis un PDF",
-            "/create-odoo": "POST - Crée le restaurant dans Odoo",
-            "/health": "GET - Vérifie la santé de l'API"
+            "/generate-menu": "POST - Génère 3 fichiers JSON (backend, frontend, articles)"
         }
     }
 
@@ -196,54 +275,55 @@ async def generate_menu(
     color1: str = Form(...),
     color2: str = Form(...),
     color3: str = Form(...),
-    menu_file: UploadFile = File(...),
-    create_in_odoo: bool = Form(False)
+    qr_mode: str = Form("unique"),
+    menu_file: UploadFile = File(None),
+    manual_menu: str = Form(None)
 ):
-    """Génère un JSON structuré à partir d'un PDF de menu"""
+    """Génère les 3 fichiers JSON nécessaires"""
     try:
-        # Vérifier que c'est bien un PDF
-        if not menu_file.filename.lower().endswith('.pdf'):
-            raise HTTPException(status_code=400, detail="Le fichier doit être un PDF")
+        # 1. Obtenir les données du menu
+        if menu_file:
+            if not menu_file.filename.lower().endswith('.pdf'):
+                raise HTTPException(status_code=400, detail="Le fichier doit être un PDF")
+            
+            pdf_content = await menu_file.read()
+            text = extract_text_from_pdf(pdf_content)
+            
+            if not text.strip():
+                raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
+            
+            menu_data = classify_menu_with_groq(text)
         
-        # Lire le contenu du PDF
-        pdf_content = await menu_file.read()
+        elif manual_menu:
+            menu_data = json.loads(manual_menu)
         
-        # Extraire le texte
-        text = extract_text_from_pdf(pdf_content)
+        else:
+            raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF soit un menu manuel")
         
-        if not text.strip():
-            raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
+        # 2. Générer les 3 fichiers JSON
+        colors = [color1, color2, color3]
         
-        print(f"✅ Texte extrait: {len(text)} caractères")
+        backend_json = generate_backend_json(restaurant_name, qr_mode)
+        frontend_json = generate_frontend_json(restaurant_name, colors)
+        articles_json = generate_articles_json(menu_data, backend_json["restaurantId"])
         
-        # Classifier avec Groq
-        menu_classifie = classify_menu_with_groq(text)
-        
-        # Créer le JSON final
-        resultat = {
-            "restaurant": restaurant_name,
-            "couleurs": [color1, color2, color3],
-            "menu": menu_classifie,
-            "stats": {
-                "total_items": sum(len(v) for v in menu_classifie.values()),
-                "entrees": len(menu_classifie.get("entrees", [])),
-                "plats": len(menu_classifie.get("plats", [])),
-                "desserts": len(menu_classifie.get("desserts", [])),
-                "boissons_soft": len(menu_classifie.get("boissons_soft", [])),
-                "boissons_alcoolisees": len(menu_classifie.get("boissons_alcoolisees", []))
-            }
-        }
-        
-        # Créer dans Odoo si demandé
-        odoo_result = None
-        if create_in_odoo:
-            odoo_result = create_restaurant_in_odoo(resultat)
-            resultat["odoo"] = odoo_result
-        
+        # 3. Retourner les 3 fichiers
         return {
             "success": True,
-            "data": json.dumps(resultat, indent=2, ensure_ascii=False),
-            "odoo": odoo_result
+            "restaurant_id": backend_json["restaurantId"],
+            "files": {
+                "backend": json.dumps(backend_json, indent=2, ensure_ascii=False),
+                "frontend": json.dumps(frontend_json, indent=2, ensure_ascii=False),
+                "articles": json.dumps(articles_json, indent=2, ensure_ascii=False)
+            },
+            "stats": {
+                "total_articles": len(articles_json),
+                "entrees": len(menu_data.get("entrees", [])),
+                "plats": len(menu_data.get("plats", [])),
+                "desserts": len(menu_data.get("desserts", [])),
+                "boissons_soft": len(menu_data.get("boissons_soft", [])),
+                "boissons_alcoolisees": len(menu_data.get("boissons_alcoolisees", []))
+            }
         }
         
     except HTTPException:
@@ -252,26 +332,12 @@ async def generate_menu(
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
 
 
-@app.post("/create-odoo")
-async def create_in_odoo_only(restaurant_data: Dict):
-    """Crée uniquement le restaurant dans Odoo"""
-    result = create_restaurant_in_odoo(restaurant_data)
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["message"])
-    return result
-
-
 @app.get("/health")
 def health_check():
-    """Vérifie que l'API est opérationnelle"""
-    groq_status = "✅ OK" if GROQ_API_KEY else "❌ GROQ_API_KEY non définie"
-    odoo_status = "✅ Configuré" if ODOO_PASSWORD else "⚠️  Non configuré"
-    
     return {
         "status": "running",
-        "groq": groq_status,
-        "odoo": odoo_status,
-        "version": "2.0"
+        "groq": "✅ OK" if GROQ_API_KEY else "❌ Non configuré",
+        "version": "3.0"
     }
 
 
