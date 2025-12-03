@@ -264,13 +264,13 @@ def home():
         "message": "🍽️ API Restaurant Menu Generator v3.0",
         "version": "3.0",
         "endpoints": {
-            "/generate-menu": "POST - Génère 3 fichiers JSON (backend, frontend, articles)"
+            "/extract-menu": "POST - Extrait le menu pour prévisualisation",
+            "/generate-menu": "POST - Génère les 3 fichiers JSON finaux (backend, frontend, articles)"
         }
     }
 
-
-@app.post("/generate-menu")
-async def generate_menu(
+@app.post("/extract-menu")
+async def extract_menu(
     restaurant_name: str = Form(...),
     color1: str = Form(...),
     color2: str = Form(...),
@@ -281,13 +281,12 @@ async def generate_menu(
     city: str = Form(""),
     country: str = Form("France"),
     menu_file: UploadFile = File(None),
-    manual_menu: str = Form(None)  # ← NOUVEAU : pour la saisie manuelle
+    manual_menu: str = Form(None)
 ):
-    """Génère les 3 fichiers JSON nécessaires"""
+    """Extrait le menu pour prévisualisation (sans générer les JSON finaux)"""
     try:
         # 1. Obtenir les données du menu
         if manual_menu:
-            # Mode saisie manuelle
             try:
                 menu_data = json.loads(manual_menu)
                 print(f"✅ Menu manuel reçu avec {sum(len(v) for v in menu_data.values())} articles")
@@ -295,7 +294,6 @@ async def generate_menu(
                 raise HTTPException(status_code=400, detail=f"JSON manuel invalide: {str(e)}")
         
         elif menu_file:
-            # Mode PDF
             if not menu_file.filename.lower().endswith('.pdf'):
                 raise HTTPException(status_code=400, detail="Le fichier doit être un PDF")
             
@@ -310,6 +308,91 @@ async def generate_menu(
         
         else:
             raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF soit un menu manuel")
+        
+        # Retourner uniquement les données extraites pour prévisualisation
+        return {
+            "success": True,
+            "data": {
+                "restaurant_name": restaurant_name,
+                "qr_mode": qr_mode,
+                "colors": {
+                    "color1": color1,
+                    "color2": color2,
+                    "color3": color3
+                },
+                "address": {
+                    "street": street,
+                    "zip_code": zip_code,
+                    "city": city,
+                    "country": country
+                },
+                "menu": menu_data
+            },
+            "stats": {
+                "total_articles": sum(len(v) for v in menu_data.values()),
+                "entrees": len(menu_data.get("entrees", [])),
+                "plats": len(menu_data.get("plats", [])),
+                "desserts": len(menu_data.get("desserts", [])),
+                "boissons_soft": len(menu_data.get("boissons_soft", [])),
+                "boissons_alcoolisees": len(menu_data.get("boissons_alcoolisees", []))
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+@app.post("/generate-menu")
+async def generate_menu(
+    restaurant_name: str = Form(...),
+    color1: str = Form(...),
+    color2: str = Form(...),
+    color3: str = Form(...),
+    qr_mode: str = Form("unique"),
+    street: str = Form(""),
+    zip_code: str = Form(""),
+    city: str = Form(""),
+    country: str = Form("France"),
+    menu_file: UploadFile = File(None),
+    manual_menu: str = Form(None),
+    validated_menu: str = Form(None)  # ← NOUVEAU : menu déjà validé depuis la preview
+):
+    """Génère les 3 fichiers JSON nécessaires"""
+    try:
+        # 1. Obtenir les données du menu
+        if validated_menu:
+            # Menu déjà validé depuis la prévisualisation
+            try:
+                menu_data = json.loads(validated_menu)
+                print(f"✅ Menu validé reçu avec {sum(len(v) for v in menu_data.values())} articles")
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=400, detail=f"JSON validé invalide: {str(e)}")
+        
+        elif manual_menu:
+            # Mode saisie manuelle (sans prévisualisation)
+            try:
+                menu_data = json.loads(manual_menu)
+                print(f"✅ Menu manuel reçu avec {sum(len(v) for v in menu_data.values())} articles")
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=400, detail=f"JSON manuel invalide: {str(e)}")
+        
+        elif menu_file:
+            # Mode PDF (sans prévisualisation)
+            if not menu_file.filename.lower().endswith('.pdf'):
+                raise HTTPException(status_code=400, detail="Le fichier doit être un PDF")
+            
+            pdf_content = await menu_file.read()
+            text = extract_text_from_pdf(pdf_content)
+            
+            if not text.strip():
+                raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
+            
+            menu_data = classify_menu_with_groq(text)
+            print(f"✅ Menu extrait du PDF avec {sum(len(v) for v in menu_data.values())} articles")
+        
+        else:
+            raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF, soit un menu manuel, soit un menu validé")
         
         # 2. Préparer l'adresse
         address = {
@@ -326,7 +409,7 @@ async def generate_menu(
         frontend_json = generate_frontend_json(restaurant_name, colors)
         articles_json = generate_articles_json(menu_data, backend_json["restaurantId"])
         
-        # 3. Retourner les 3 fichiers
+        # 4. Retourner les 3 fichiers
         return {
             "success": True,
             "restaurant_id": backend_json["restaurantId"],
