@@ -616,21 +616,14 @@ async def test_sftp_connection(ftp_password: str = Form(...)):
         results["tests"].append({"step": "Liste des fichiers", "status": "testing"})
         files = sftp.listdir()
         results["tests"][-1]["status"] = "✅ OK"
-        results["tests"][-1]["details"] = f"{len(files)} fichiers trouvés: {', '.join(files[:5])}"
+        results["tests"][-1]["details"] = f"{len(files)} fichiers trouvés"
         
         # Test 6: Test d'écriture
         results["tests"].append({"step": "Test d'écriture", "status": "testing"})
-        test_content = f"Test d'écriture - {paramiko.__version__}"
+        test_content = "Test de connexion SFTP depuis Render"
         with sftp.file('test_connection.txt', 'w') as f:
             f.write(test_content)
         results["tests"][-1]["status"] = "✅ OK"
-        
-        # Test 7: Lecture du fichier
-        results["tests"].append({"step": "Test de lecture", "status": "testing"})
-        with sftp.file('test_connection.txt', 'r') as f:
-            content = f.read()
-        results["tests"][-1]["status"] = "✅ OK"
-        results["tests"][-1]["details"] = f"Contenu lu: {content[:50]}"
         
         sftp.close()
         ssh.close()
@@ -647,28 +640,16 @@ async def test_sftp_connection(ftp_password: str = Form(...)):
         results["message"] = "❌ Paramiko n'est pas installé dans requirements.txt"
         
     except paramiko.AuthenticationException:
-        results["tests"].append({
-            "step": results["tests"][-1]["step"],
-            "status": "❌ ERREUR",
-            "error": "Mot de passe incorrect"
-        })
+        if results["tests"]:
+            results["tests"][-1]["status"] = "❌ ERREUR"
+            results["tests"][-1]["error"] = "Mot de passe incorrect"
         results["message"] = "❌ Authentification échouée - Mot de passe incorrect"
         
-    except TimeoutError:
-        results["tests"].append({
-            "step": results["tests"][-1]["step"],
-            "status": "❌ ERREUR",
-            "error": "Timeout de connexion"
-        })
-        results["message"] = "❌ Impossible de se connecter au serveur (timeout) - Firewall ?"
-        
     except Exception as e:
-        results["tests"].append({
-            "step": results["tests"][-1]["step"] if results["tests"] else "Inconnu",
-            "status": "❌ ERREUR",
-            "error": str(e),
-            "type": type(e).__name__
-        })
+        if results["tests"]:
+            results["tests"][-1]["status"] = "❌ ERREUR"
+            results["tests"][-1]["error"] = str(e)
+            results["tests"][-1]["type"] = type(e).__name__
         results["message"] = f"❌ Erreur: {type(e).__name__}: {str(e)}"
     
     return results
