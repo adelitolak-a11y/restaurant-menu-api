@@ -654,6 +654,23 @@ async def test_sftp_connection(ftp_password: str = Form(...)):
     
     return results
 
+@app.get("/test-network")
+async def test_network():
+    import socket
+    try:
+        # Test si Render peut atteindre ton serveur
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        result = sock.connect_ex(("178.32.198.72", 2266))
+        sock.close()
+        
+        if result == 0:
+            return {"status": "✅ Port 2266 accessible depuis Render"}
+        else:
+            return {"status": f"❌ Port 2266 non accessible (code: {result})"}
+    except Exception as e:
+        return {"status": f"❌ Erreur: {str(e)}"}
+
 @app.post("/upload-to-server")
 async def upload_to_server(
     restaurant_id: str = Form(...),
@@ -742,6 +759,7 @@ async def upload_to_server(
             "success": False,
             "message": f"❌ Erreur: {str(e)}"
         }
+        
 
 if __name__ == "__main__":
     import uvicorn
