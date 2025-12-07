@@ -564,6 +564,115 @@ def health_check():
         "version": "3.0"
     }
 
+# Ajoute cet endpoint dans ton API pour tester
+
+@app.post("/test-sftp-connection")
+async def test_sftp_connection(ftp_password: str = Form(...)):
+    """Endpoint de test pour diagnostiquer la connexion SFTP"""
+    results = {
+        "tests": [],
+        "success": False
+    }
+    
+    try:
+        # Test 1: Paramiko installé ?
+        results["tests"].append({"step": "Import paramiko", "status": "testing"})
+        import paramiko
+        results["tests"][-1]["status"] = "✅ OK"
+        
+        # Test 2: Connexion SSH
+        results["tests"].append({"step": "Connexion SSH", "status": "testing"})
+        SFTP_HOST = "178.32.198.72"
+        SFTP_PORT = 2266
+        SFTP_USER = "snadmin"
+        
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        ssh.connect(
+            hostname=SFTP_HOST,
+            port=SFTP_PORT,
+            username=SFTP_USER,
+            password=ftp_password,
+            look_for_keys=False,
+            allow_agent=False,
+            timeout=30
+        )
+        results["tests"][-1]["status"] = "✅ OK"
+        
+        # Test 3: Ouverture SFTP
+        results["tests"].append({"step": "Ouverture session SFTP", "status": "testing"})
+        sftp = ssh.open_sftp()
+        results["tests"][-1]["status"] = "✅ OK"
+        
+        # Test 4: Navigation vers le dossier
+        results["tests"].append({"step": "Navigation vers dossier", "status": "testing"})
+        TARGET_PATH = "/var/www/pleazze/data/config/abdel"
+        sftp.chdir(TARGET_PATH)
+        results["tests"][-1]["status"] = "✅ OK"
+        results["tests"][-1]["details"] = f"Dossier: {sftp.getcwd()}"
+        
+        # Test 5: Liste des fichiers
+        results["tests"].append({"step": "Liste des fichiers", "status": "testing"})
+        files = sftp.listdir()
+        results["tests"][-1]["status"] = "✅ OK"
+        results["tests"][-1]["details"] = f"{len(files)} fichiers trouvés: {', '.join(files[:5])}"
+        
+        # Test 6: Test d'écriture
+        results["tests"].append({"step": "Test d'écriture", "status": "testing"})
+        test_content = f"Test d'écriture - {paramiko.__version__}"
+        with sftp.file('test_connection.txt', 'w') as f:
+            f.write(test_content)
+        results["tests"][-1]["status"] = "✅ OK"
+        
+        # Test 7: Lecture du fichier
+        results["tests"].append({"step": "Test de lecture", "status": "testing"})
+        with sftp.file('test_connection.txt', 'r') as f:
+            content = f.read()
+        results["tests"][-1]["status"] = "✅ OK"
+        results["tests"][-1]["details"] = f"Contenu lu: {content[:50]}"
+        
+        sftp.close()
+        ssh.close()
+        
+        results["success"] = True
+        results["message"] = "✅ Tous les tests sont passés ! La connexion SFTP fonctionne."
+        
+    except ImportError as e:
+        results["tests"].append({
+            "step": "Import paramiko",
+            "status": "❌ ERREUR",
+            "error": f"Paramiko n'est pas installé: {str(e)}"
+        })
+        results["message"] = "❌ Paramiko n'est pas installé dans requirements.txt"
+        
+    except paramiko.AuthenticationException:
+        results["tests"].append({
+            "step": results["tests"][-1]["step"],
+            "status": "❌ ERREUR",
+            "error": "Mot de passe incorrect"
+        })
+        results["message"] = "❌ Authentification échouée - Mot de passe incorrect"
+        
+    except TimeoutError:
+        results["tests"].append({
+            "step": results["tests"][-1]["step"],
+            "status": "❌ ERREUR",
+            "error": "Timeout de connexion"
+        })
+        results["message"] = "❌ Impossible de se connecter au serveur (timeout) - Firewall ?"
+        
+    except Exception as e:
+        results["tests"].append({
+            "step": results["tests"][-1]["step"] if results["tests"] else "Inconnu",
+            "status": "❌ ERREUR",
+            "error": str(e),
+            "type": type(e).__name__
+        })
+        results["message"] = f"❌ Erreur: {type(e).__name__}: {str(e)}"
+    
+    return results
+
 @app.post("/upload-to-server")
 async def upload_to_server(
     restaurant_id: str = Form(...),
