@@ -7,6 +7,8 @@ from groq import Groq
 from typing import Dict, List
 import requests
 from dotenv import load_dotenv
+import ftplib
+from io import BytesIO
 
 load_dotenv()
 
@@ -562,6 +564,55 @@ def health_check():
         "groq": "✅ OK" if GROQ_API_KEY else "❌ Non configuré",
         "version": "3.0"
     }
+
+@app.post("/upload-to-server")
+async def upload_to_server(
+    restaurant_id: str = Form(...),
+    backend_json: str = Form(...),
+    frontend_json: str = Form(...),
+    ftp_password: str = Form(...),
+    target_path: str = Form(...)
+):
+    """Upload les fichiers JSON générés sur le serveur FTP"""
+    try:
+        # Configuration FTP (depuis ton screenshot)
+        ftp_host = "178.32.198.72"
+        ftp_port = 2266
+        ftp_user = "snadmin"
+        
+        # Connexion FTP
+        ftp = ftplib.FTP()
+        ftp.connect(ftp_host, ftp_port)
+        ftp.login(ftp_user, ftp_password)
+        
+        # Naviguer vers le dossier cible
+        ftp.cwd(target_path)
+        
+        # Upload backend.json
+        backend_file = BytesIO(backend_json.encode('utf-8'))
+        ftp.storbinary('STOR backend.json', backend_file)
+        
+        # Upload frontend.json
+        frontend_file = BytesIO(frontend_json.encode('utf-8'))
+        ftp.storbinary('STOR frontend.json', frontend_file)
+        
+        ftp.quit()
+        
+        return {
+            "success": True,
+            "message": "Fichiers uploadés avec succès sur le serveur"
+        }
+        
+    except ftplib.error_perm as e:
+        return {
+            "success": False,
+            "message": f"Erreur de permission FTP: {str(e)}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Erreur d'upload: {str(e)}"
+        }
 
 if __name__ == "__main__":
     import uvicorn
