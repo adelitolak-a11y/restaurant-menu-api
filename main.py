@@ -7,8 +7,7 @@ from groq import Groq
 from typing import Dict, List
 import requests
 from dotenv import load_dotenv
-import ftplib
-from io import BytesIO
+import paramiko
 
 load_dotenv()
 
@@ -570,43 +569,60 @@ async def upload_to_server(
     restaurant_id: str = Form(...),
     backend_json: str = Form(...),
     frontend_json: str = Form(...),
-    ftp_password: str = Form(...),
-    target_path: str = Form(...)
+    ftp_password: str = Form(...)
 ):
-    """Upload les fichiers JSON générés sur le serveur FTP"""
+    """Upload les fichiers JSON générés sur le serveur via SFTP"""
     try:
-        # Configuration FTP (depuis ton screenshot)
-        ftp_host = "178.32.198.72"
-        ftp_port = 2266
-        ftp_user = "snadmin"
+        # Configuration SFTP
+        SFTP_HOST = "178.32.198.72"
+        SFTP_PORT = 2266
+        SFTP_USER = "snadmin"
+        TARGET_PATH = "/var/www/pleazze/data/config/abdel"
         
-        # Connexion FTP
-        ftp = ftplib.FTP()
-        ftp.connect(ftp_host, ftp_port)
-        ftp.login(ftp_user, ftp_password)
+        # Connexion SSH
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         
-        # Naviguer vers le dossier cible
-        ftp.cwd(target_path)
+        ssh.connect(
+            hostname=SFTP_HOST,
+            port=SFTP_PORT,
+            username=SFTP_USER,
+            password=ftp_password,
+            look_for_keys=False,
+            allow_agent=False,
+            timeout=10
+        )
+        
+        # Ouvrir session SFTP
+        sftp = ssh.open_sftp()
+        sftp.chdir(TARGET_PATH)
         
         # Upload backend.json
-        backend_file = BytesIO(backend_json.encode('utf-8'))
-        ftp.storbinary('STOR backend.json', backend_file)
+        with sftp.file('backend.json', 'w') as f:
+            f.write(backend_json)
         
         # Upload frontend.json
-        frontend_file = BytesIO(frontend_json.encode('utf-8'))
-        ftp.storbinary('STOR frontend.json', frontend_file)
+        with sftp.file('frontend.json', 'w') as f:
+            f.write(frontend_json)
         
-        ftp.quit()
+        # Fermer connexions
+        sftp.close()
+        ssh.close()
         
         return {
             "success": True,
             "message": "Fichiers uploadés avec succès sur le serveur"
         }
         
-    except ftplib.error_perm as e:
+    except paramiko.AuthenticationException:
         return {
             "success": False,
-            "message": f"Erreur de permission FTP: {str(e)}"
+            "message": "Erreur d'authentification: mot de passe incorrect"
+        }
+    except paramiko.SSHException as e:
+        return {
+            "success": False,
+            "message": f"Erreur SSH: {str(e)}"
         }
     except Exception as e:
         return {
