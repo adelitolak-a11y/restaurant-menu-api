@@ -573,16 +573,20 @@ async def upload_to_server(
 ):
     """Upload les fichiers JSON générés sur le serveur via SFTP"""
     try:
-        # Configuration SFTP
+        import paramiko  # Test si paramiko est installé
+        
         SFTP_HOST = "178.32.198.72"
         SFTP_PORT = 2266
         SFTP_USER = "snadmin"
         TARGET_PATH = "/var/www/pleazze/data/config/abdel"
         
-        # Connexion SSH
+        # Log pour debug
+        print(f"🔍 Tentative de connexion SFTP à {SFTP_HOST}:{SFTP_PORT}")
+        
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         
+        print("🔐 Connexion SSH...")
         ssh.connect(
             hostname=SFTP_HOST,
             port=SFTP_PORT,
@@ -590,22 +594,28 @@ async def upload_to_server(
             password=ftp_password,
             look_for_keys=False,
             allow_agent=False,
-            timeout=10
+            timeout=30  # Augmenter le timeout
         )
+        print("✅ SSH connecté")
         
-        # Ouvrir session SFTP
+        print("📂 Ouverture SFTP...")
         sftp = ssh.open_sftp()
-        sftp.chdir(TARGET_PATH)
+        print("✅ SFTP ouvert")
         
-        # Upload backend.json
+        print(f"📁 Navigation vers {TARGET_PATH}...")
+        sftp.chdir(TARGET_PATH)
+        print("✅ Dossier trouvé")
+        
+        print("📤 Upload backend.json...")
         with sftp.file('backend.json', 'w') as f:
             f.write(backend_json)
+        print("✅ backend.json uploadé")
         
-        # Upload frontend.json
+        print("📤 Upload frontend.json...")
         with sftp.file('frontend.json', 'w') as f:
             f.write(frontend_json)
+        print("✅ frontend.json uploadé")
         
-        # Fermer connexions
         sftp.close()
         ssh.close()
         
@@ -614,20 +624,33 @@ async def upload_to_server(
             "message": "Fichiers uploadés avec succès sur le serveur"
         }
         
+    except ImportError:
+        return {
+            "success": False,
+            "message": "❌ Paramiko n'est pas installé sur le serveur"
+        }
     except paramiko.AuthenticationException:
         return {
             "success": False,
-            "message": "Erreur d'authentification: mot de passe incorrect"
+            "message": "❌ Mot de passe incorrect"
+        }
+    except TimeoutError:
+        return {
+            "success": False,
+            "message": "❌ Timeout: le serveur Render ne peut pas atteindre ton serveur SFTP (firewall?)"
         }
     except paramiko.SSHException as e:
         return {
             "success": False,
-            "message": f"Erreur SSH: {str(e)}"
+            "message": f"❌ Erreur SSH: {str(e)}"
         }
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"❌ Erreur complète: {error_details}")
         return {
             "success": False,
-            "message": f"Erreur d'upload: {str(e)}"
+            "message": f"❌ Erreur: {str(e)}"
         }
 
 if __name__ == "__main__":
