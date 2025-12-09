@@ -487,8 +487,12 @@ async def generate_menu(
                 "menus_2": json.dumps(menus_2_json, indent=2, ensure_ascii=False)
             },
             "stats": {
-                "total_articles": len(menus_json),
-                "par_categorie": {k: len(menu_data.get(k, [])) for k in menu_data.keys()}
+                "total_articles": sum(len(v) for v in menu_data.values()),  # ✅ CORRECT
+                "entrees": len(menu_data.get('entrees', [])),
+                "plats": len(menu_data.get('plats', [])),
+                "desserts": len(menu_data.get('desserts', [])),
+                "boissons_soft": len(menu_data.get('boissons_soft', [])),
+                "boissons_alcoolisees": len(menu_data.get('boissons_alcoolisees', []))
             }
         }
         
