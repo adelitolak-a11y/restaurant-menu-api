@@ -617,7 +617,7 @@ async def upload_to_server(
     restaurant_id: str = Form(...),
     backend_json: str = Form(...),
     frontend_json: str = Form(...),
-    menus_json: str = Form(...),
+    menus_json: str = Form(...),  # ← AJOUT DU PARAMÈTRE
     ftp_password: str = Form(...)
 ):
     """Upload les fichiers JSON sur le serveur via SFTP"""
@@ -643,7 +643,17 @@ async def upload_to_server(
             pass
         
         try:
-            sftp.makedirs(CACHE_PATH)
+            # ← CORRECTION : utiliser makedirs au lieu de mkdir pour créer les dossiers parents
+            parts = CACHE_PATH.split('/')
+            current = ''
+            for part in parts:
+                if not part:
+                    continue
+                current += '/' + part
+                try:
+                    sftp.mkdir(current)
+                except:
+                    pass
         except:
             pass
         
@@ -652,18 +662,18 @@ async def upload_to_server(
         with sftp.file('backend.json', 'w') as f:
             f.write(backend_json)
         with sftp.file('backend_2.json', 'w') as f:
-            f.write(backend_json)  # Copie
+            f.write(backend_json)
         with sftp.file('frontend.json', 'w') as f:
             f.write(frontend_json)
         with sftp.file('frontend_2.json', 'w') as f:
-            f.write(frontend_json)  # Copie
+            f.write(frontend_json)
         
         # Upload dans /cache/
         sftp.chdir(CACHE_PATH)
         with sftp.file('menus.4.json', 'w') as f:
             f.write(menus_json)
         with sftp.file('menus_2.4.json', 'w') as f:
-            f.write(menus_json)  # Copie
+            f.write(menus_json)
         
         sftp.close()
         ssh.close()
