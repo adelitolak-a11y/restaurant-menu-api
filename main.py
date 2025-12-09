@@ -621,7 +621,7 @@ async def upload_to_server(
     restaurant_id: str = Form(...),
     backend_json: str = Form(...),
     frontend_json: str = Form(...),
-    menus_json: str = Form(...),  # ← AJOUT DU PARAMÈTRE
+    menus_json: str = Form(...),  # ✅ Nom correct
     ftp_password: str = Form(...)
 ):
     """Upload les fichiers JSON sur le serveur via SFTP"""
@@ -640,14 +640,23 @@ async def upload_to_server(
         
         sftp = ssh.open_sftp()
         
-        # Créer les dossiers si nécessaire
+        # Créer les dossiers CONFIG si nécessaire
         try:
-            sftp.mkdir(CONFIG_PATH)
+            parts = CONFIG_PATH.split('/')
+            current = ''
+            for part in parts:
+                if not part:
+                    continue
+                current += '/' + part
+                try:
+                    sftp.mkdir(current)
+                except:
+                    pass
         except:
             pass
         
+        # Créer les dossiers CACHE si nécessaire
         try:
-            # ← CORRECTION : utiliser makedirs au lieu de mkdir pour créer les dossiers parents
             parts = CACHE_PATH.split('/')
             current = ''
             for part in parts:
@@ -661,7 +670,7 @@ async def upload_to_server(
         except:
             pass
         
-        # Upload dans /config/
+        # ✅ Upload dans /config/ (4 fichiers)
         sftp.chdir(CONFIG_PATH)
         with sftp.file('backend.json', 'w') as f:
             f.write(backend_json)
@@ -672,7 +681,7 @@ async def upload_to_server(
         with sftp.file('frontend_2.json', 'w') as f:
             f.write(frontend_json)
         
-        # Upload dans /cache/
+        # ✅ Upload dans /cache/ (2 fichiers)
         sftp.chdir(CACHE_PATH)
         with sftp.file('menus.4.json', 'w') as f:
             f.write(menus_json)
@@ -682,9 +691,16 @@ async def upload_to_server(
         sftp.close()
         ssh.close()
         
-        return {"success": True, "message": "Fichiers uploadés avec succès"}
+        return {
+            "success": True, 
+            "message": "✅ 6 fichiers uploadés avec succès",
+            "details": {
+                "config": ["backend.json", "backend_2.json", "frontend.json", "frontend_2.json"],
+                "cache": ["menus.4.json", "menus_2.4.json"]
+            }
+        }
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": f"Erreur SFTP: {str(e)}"}
         
 
 if __name__ == "__main__":
