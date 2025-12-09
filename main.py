@@ -320,9 +320,13 @@ def home():
 @app.post("/extract-menu")
 async def extract_menu(
     restaurant_name: str = Form(...),
-    color1: str = Form(...),
-    color2: str = Form(...),
-    color3: str = Form(...),
+    color_primary: str = Form("#db5543"),
+    color_accent: str = Form("#db5543"),
+    color_footer: str = Form("#db5543"),
+    color_footer_accent: str = Form("#eb5c27"),
+    color_button_accent_bg: str = Form("#db5543"),
+    color_button_primary_font: str = Form("#db5543"),
+    color_button_menu_block_font: str = Form("#eb5c27"),
     qr_mode: str = Form("unique"),
     street: str = Form(""),
     zip_code: str = Form(""),
@@ -364,9 +368,13 @@ async def extract_menu(
                 "restaurant_name": restaurant_name,
                 "qr_mode": qr_mode,
                 "colors": {
-                    "color1": color1,
-                    "color2": color2,
-                    "color3": color3
+                    "primary": color_primary,
+                    "accent": color_accent,
+                    "footer": color_footer,
+                    "footer_accent": color_footer_accent,
+                    "button_accent_background": color_button_accent_bg,
+                    "button_primary_font": color_button_primary_font,
+                    "button_menu_block_font": color_button_menu_block_font
                 },
                 "address": {
                     "street": street,
@@ -390,9 +398,13 @@ async def extract_menu(
 @app.post("/generate-menu")
 async def generate_menu(
     restaurant_name: str = Form(...),
-    color1: str = Form(...),
-    color2: str = Form(...),
-    color3: str = Form(...),
+    color_primary: str = Form("#db5543"),
+    color_accent: str = Form("#db5543"),
+    color_footer: str = Form("#db5543"),
+    color_footer_accent: str = Form("#eb5c27"),
+    color_button_accent_bg: str = Form("#db5543"),
+    color_button_primary_font: str = Form("#db5543"),
+    color_button_menu_block_font: str = Form("#eb5c27"),
     qr_mode: str = Form("unique"),
     street: str = Form(""),
     zip_code: str = Form(""),
@@ -444,7 +456,15 @@ async def generate_menu(
         }
         
         # 3. Générer les 3 fichiers JSON
-        colors = [color1, color2, color3]
+        colors = {
+            "primary": color_primary,
+            "accent": color_accent,
+            "footer": color_footer,
+            "footer_accent": color_footer_accent,
+            "button_accent_background": color_button_accent_bg,
+            "button_primary_font": color_button_primary_font,
+            "button_menu_block_font": color_button_menu_block_font
+        }
         
         backend_json = generate_backend_json(restaurant_name, qr_mode, address)
         frontend_json = generate_frontend_json(restaurant_name, colors)
