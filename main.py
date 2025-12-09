@@ -153,25 +153,21 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
             "lyfPosId": "",
             "lyfPosKey": ""
         },
-        "address": {
-            "street": address.get("street", ""),
-            "zipCode": address.get("zip_code", ""),
-            "city": address.get("city", ""),
-            "country": address.get("country", "France")
-        },
+        "address": address,
         "menu": {
             "menus": [],
-            "sections": [],
-            "drinks": [],
+            "sections": [17, 18],  # Sections nourriture
+            "drinks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],  # Toutes les catégories de boissons
             "courses": {
                 "choicesForCourse": {},
                 "courseByGroup": {},
                 "courseLabels": {
-                    "3": {"fr": "Entrée", "en": "Starter", "class": "overt-courseId", "courseId": "3"},
-                    "5": {"fr": "Plat", "en": "Main", "class": "obleucl-courseId", "courseId": "5"},
-                    "7": {"fr": "Dessert", "en": "Dessert", "class": "oorange-courseId", "courseId": "7"}
+                    "1": {"fr": "Apéro", "en": "Apetizer", "class": "brown-courseId", "courseId": "1"},
+                    "2": {"fr": "Entrée", "en": "Starter", "class": "green-courseId", "courseId": "2"},
+                    "3": {"fr": "Plat", "en": "Main", "class": "blue-courseId", "courseId": "3"},
+                    "4": {"fr": "Dessert", "en": "Dessert", "class": "yellow-courseId", "courseId": "4"}
                 },
-                "courseOrder": ["3", "5", "7"]
+                "courseOrder": ["1", "2", "3", "4"]
             }
         },
         "restaurantName": restaurant_name,
@@ -182,26 +178,34 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
     
     return backend
 
-def generate_frontend_json(restaurant_name: str, colors: List[str]) -> Dict:
+def generate_frontend_json(restaurant_name: str, colors: Dict) -> Dict:
     """Génère le fichier frontend.json"""
     
     frontend = {
+        "homeType": "home2",
+        "clientMenuType": "clientMenu2",
+        "cartType": "cart",
+        "payType": "lyf-prepay",
+        "menuType": "menu2",
+        "drinkMenuType": "drinkMenu2",
+        "identificationType": "ident2",
+        "isIdentificationMandatory": False,
+        "routeAfterIdentification": "pay/thankyou",
+        "foodButtonEnabled": True,
+        "happyHour": {
+            "weekDays": [],
+            "start": 24,
+            "end": 24
+        },
         "home": {
             "banners": [{
                 "src": "/assets/img/banners/banner.png",
                 "title": {
-                    "fr": f"Bienvenue chez {restaurant_name}",
-                    "en": f"Welcome to {restaurant_name}"
+                    "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
+                    "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
                 }
             }],
-            "blocs": [{
-                "type": "text",
-                "text": {
-                    "fr": f"Découvrez notre carte et commandez directement depuis votre table via QR code.",
-                    "en": f"Discover our menu and order directly from your table via QR code."
-                },
-                "classes": "none"
-            }]
+            "blocs": []
         },
         "menu": {
             "banner": {
@@ -210,186 +214,97 @@ def generate_frontend_json(restaurant_name: str, colors: List[str]) -> Dict:
         },
         "styles": {
             "colors": {
-                "primary": colors[0],
-                "accent": colors[1],
-                "footer": colors[2]
+                "primary": colors.get("primary"),
+                "accent": colors.get("accent"),
+                "footer": colors.get("footer"),
+                "footer_accent": colors.get("footer_accent"),
+                "footer_font": colors.get("footer_font", "#FFFFFF"),
+                "order_page_background": colors.get("order_page_background", "#E4DFD8"),
+                "order_page_font": colors.get("order_page_font", "#252525"),
+                "pay_page_background": colors.get("pay_page_background", "#E4DFD8"),
+                "pay_page_font": colors.get("pay_page_font", "#252525"),
+                "form_input_background": colors.get("form_input_background", "#F5F5F5"),
+                "form_input_font": colors.get("form_input_font", "#8A8A8A"),
+                "button_accent_background": colors.get("button_accent_background"),
+                "button_accent_font": colors.get("button_accent_font", "#E4DFD8"),
+                "button_primary_background": colors.get("button_primary_background", "#E4DFD8"),
+                "button_primary_font": colors.get("button_primary_font"),
+                "button_menu_block": colors.get("button_menu_block", "#FFFFFF"),
+                "button_menu_block_font": colors.get("button_menu_block_font")
             }
-        },
-        "payment": {
-            "stripe_public_key": "pk_test_..."
-        },
-        "discountPercent": 0.05
+        }
     }
     
     return frontend
 
-def generate_articles_json(menu_data: Dict, restaurant_id: str) -> List[Dict]:
-    """Génère le fichier articles.json - EXACTEMENT comme l'exemple fourni"""
+def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
+    """Génère le fichier menus.4.json au format Odoo"""
     
-    articles = []
-    current_id = 4000
-    
-    # Mapping EXACT basé sur votre fichier article.json
-    category_mapping = {
-        "entrees": {
-            "id": 17,
-            "name": "NOURRITURE / ENTREES",
-            "tva": 42,
-            "course": "3"
-        },
-        "plats": {
-            "id": 18,
-            "name": "NOURRITURE / SNACKING",  # Comme dans votre exemple
-            "tva": 42,
-            "course": "5"
-        },
-        "desserts": {
-            "id": 19,
-            "name": "NOURRITURE / DESSERTS",
-            "tva": 42,
-            "course": "7"
-        },
-        "boissons_soft": {
-            "id": 6,
-            "name": "BOISSONS / SOFTS-EAUX",  # EXACT comme votre exemple
-            "tva": 42,
-            "course": "1"
-        },
-        "boissons_alcoolisees": {
-            "id": 13,  # Dans votre exemple c'est ALCOOLS = 13
-            "name": "BOISSONS / ALCOOLS",
-            "tva": 41,
-            "course": "1"
-        },
-        "aperitifs": {
-            "id": 4,
-            "name": "BOISSONS / APERITIFS",
-            "tva": 41,
-            "course": "1"
-        },
-        "cocktails": {
-            "id": 2,
-            "name": "BOISSONS / COCKTAILS",
-            "tva": 41,
-            "course": "1"
-        },
-        "mocktails": {
-            "id": 3,
-            "name": "BOISSONS / MOCKTAILS",
-            "tva": 42,
-            "course": "1"
-        },
-        "bieres": {
-            "id": 5,
-            "name": "BOISSONS / BIERES",
-            "tva": 41,
-            "course": "1"
-        },
-        "vins_blancs": {
-            "id": 8,
-            "name": "BOISSONS / VINS VERRE BLANCS",
-            "tva": 41,
-            "course": "1"
-        },
-        "vins_rouges": {
-            "id": 9,
-            "name": "BOISSONS / VINS VERRE ROUGES",
-            "tva": 41,
-            "course": "1"
-        },
-        "vins_roses": {
-            "id": 10,
-            "name": "BOISSONS / VINS VERRE ROSES",
-            "tva": 41,
-            "course": "1"
-        },
-        "champagnes": {
-            "id": 11,
-            "name": "BOISSONS / CHAMPAGNES BLANCS",
-            "tva": 41,
-            "course": "1"
-        },
-        "champagnes_roses": {
-            "id": 12,
-            "name": "BOISSONS / CHAMPAGNES ROSÉ",
-            "tva": 41,
-            "course": "1"
-        },
-        "cafeterie": {
-            "id": 7,
-            "name": "BOISSONS / CAFETERIE",
-            "tva": 42,
-            "course": "1"
-        },
-        "bt_vins_blancs": {
-            "id": 14,
-            "name": "BOISSONS / BT VINS BLANCS",
-            "tva": 41,
-            "course": "1"
-        },
-        "bt_vins_rouges": {
-            "id": 16,
-            "name": "BOISSONS / BT VINS ROUGES",
-            "tva": 41,
-            "course": "1"
-        },
-        "bt_vins_roses": {
-            "id": 15,
-            "name": "BOISSONS / BT VINS ROSES",
-            "tva": 41,
-            "course": "1"
-        }
+    menus_json = {
+        "menus": [],
+        "sections": [
+            {
+                "name": {"fr": "NOURRITURE", "en": "FOOD"},
+                "articles": []
+            }
+        ],
+        "drinks": []
     }
+    
+    # Mapping des catégories
+    category_mapping = {
+        "entrees": {"section": "sections", "name": {"fr": "ENTRÉES", "en": "STARTERS"}},
+        "plats": {"section": "sections", "name": {"fr": "PLATS", "en": "MAINS"}},
+        "desserts": {"section": "sections", "name": {"fr": "DESSERTS", "en": "DESSERTS"}},
+        "boissons_soft": {"section": "drinks", "name": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"}},
+        "boissons_alcoolisees": {"section": "drinks", "name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
+        "cocktails": {"section": "drinks", "name": {"fr": "COCKTAILS", "en": "COCKTAILS"}},
+        "mocktails": {"section": "drinks", "name": {"fr": "MOCKTAILS", "en": "MOCKTAILS"}},
+        "bieres": {"section": "drinks", "name": {"fr": "BIÈRES", "en": "BEERS"}},
+        # ... ajoute les autres catégories
+    }
+    
+    current_id = 4000
     
     for category, items in menu_data.items():
         if category not in category_mapping:
-            print(f"⚠️  Catégorie '{category}' non mappée, ignorée")
             continue
             
         cat_info = category_mapping[category]
+        section_type = cat_info["section"]
         
-        for idx, item in enumerate(items):
-            # Validation des données
-            if "nom" not in item or "prix" not in item:
-                print(f"⚠️  Article incomplet ignoré: {item}")
-                continue
-            
-            # Conversion du prix en nombre (float ou int selon le cas)
-            prix = float(item["prix"]) if isinstance(item["prix"], str) else item["prix"]
-            
-            # Structure EXACTE comme votre exemple
+        # Créer une section pour cette catégorie
+        category_section = {
+            "name": cat_info["name"],
+            "articles": []
+        }
+        
+        for item in items:
             article = {
-                "id": current_id,
-                "name": item["nom"],
-                "display_name": item["nom"],
-                "description": False,  # boolean false (pas string)
-                "description_sale": item.get("description", False),  # False ou string
-                "list_price": prix,  # nombre
-                "taxes_id": [cat_info["tva"]],  # array avec 1 élément
-                "standard_price": 0,  # nombre
-                "pos_categ_id": [cat_info["id"], cat_info["name"]],  # [int, string]
-                "sale_area": [],  # array vide
-                "image_512": False,  # boolean
-                "is_pack": False,  # boolean
-                "menu_ids": [],  # array vide
-                "only_menu": False,  # boolean
-                "product_tag_ids": [],  # array vide
-                "product_rank": [1, "Apéritif 1"],  # [int, string] EXACT
-                "priority": "0",  # STRING "0"
-                "sequence": idx,  # nombre qui s'incrémente
-                "extra_cost": [],  # array vide
-                "en_GB": {
-                    "display_name": item["nom"],
-                    "pos_categ_id": [cat_info["id"], cat_info["name"]],
-                    "description_sale": item.get("description", False)
-                }
+                "name": {"fr": item["nom"], "en": item["nom"]},
+                "articleId": str(current_id),
+                "posName": item["nom"],
+                "price": {"priceId": "", "amount": float(item["prix"])},
+                "img": "",
+                "descr": {"fr": item.get("description", ""), "en": item.get("description", "")},
+                "allergens": {"fr": "", "en": ""},
+                "additional": {"fr": "", "en": ""},
+                "wine_pairing": {"fr": "", "en": ""},
+                "options": [],
+                "defaultCourseId": 1,
+                "choicesForCourse": []
             }
             
-            articles.append(article)
+            category_section["articles"].append(article)
             current_id += 1
+        
+        # Ajouter la section au bon endroit
+        if section_type == "sections":
+            menus_json["sections"].append(category_section)
+        else:
+            menus_json["drinks"].append(category_section)
     
-    print(f"✅ {len(articles)} articles générés avec IDs de {4000} à {current_id-1}")
-    return articles
+    return menus_json
 
 @app.get("/")
 def home():
@@ -533,7 +448,10 @@ async def generate_menu(
         
         backend_json = generate_backend_json(restaurant_name, qr_mode, address)
         frontend_json = generate_frontend_json(restaurant_name, colors)
-        articles_json = generate_articles_json(menu_data, backend_json["restaurantId"])
+        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"])
+        backend_2_json = backend_json.copy()
+        frontend_2_json = frontend_json.copy()
+        menus_2_json = menus_json.copy()
         
         # 4. Retourner les 3 fichiers
         return {
@@ -543,10 +461,13 @@ async def generate_menu(
             "files": {
                 "backend": json.dumps(backend_json, indent=2, ensure_ascii=False),
                 "frontend": json.dumps(frontend_json, indent=2, ensure_ascii=False),
-                "articles": json.dumps(articles_json, indent=2, ensure_ascii=False)
+                "menus": json.dumps(menus_json, indent=2, ensure_ascii=False),
+                "backend_2": json.dumps(backend_2_json, indent=2, ensure_ascii=False),
+                "frontend_2": json.dumps(frontend_2_json, indent=2, ensure_ascii=False),
+                "menus_2": json.dumps(menus_2_json, indent=2, ensure_ascii=False)
             },
             "stats": {
-                "total_articles": len(articles_json),
+                "total_articles": len(menus_json),
                 "par_categorie": {k: len(menu_data.get(k, [])) for k in menu_data.keys()}
             }
         }
@@ -676,89 +597,60 @@ async def upload_to_server(
     restaurant_id: str = Form(...),
     backend_json: str = Form(...),
     frontend_json: str = Form(...),
+    menus_json: str = Form(...),
     ftp_password: str = Form(...)
 ):
-    """Upload les fichiers JSON générés sur le serveur via SFTP"""
+    """Upload les fichiers JSON sur le serveur via SFTP"""
     try:
-        import paramiko  # Test si paramiko est installé
+        import paramiko
         
         SFTP_HOST = "178.32.198.72"
         SFTP_PORT = 2266
         SFTP_USER = "snadmin"
-        TARGET_PATH = "/var/www/pleazze/data/config/abdel"
-        
-        # Log pour debug
-        print(f"🔍 Tentative de connexion SFTP à {SFTP_HOST}:{SFTP_PORT}")
+        CONFIG_PATH = f"/var/www/pleazze/data/config/{restaurant_id}"
+        CACHE_PATH = f"/var/www/pleazze/data/cache/{restaurant_id}/data_2025-07-29_17-25-11"
         
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=SFTP_HOST, port=SFTP_PORT, username=SFTP_USER, password=ftp_password, timeout=30)
         
-        print("🔐 Connexion SSH...")
-        ssh.connect(
-            hostname=SFTP_HOST,
-            port=SFTP_PORT,
-            username=SFTP_USER,
-            password=ftp_password,
-            look_for_keys=False,
-            allow_agent=False,
-            timeout=30  # Augmenter le timeout
-        )
-        print("✅ SSH connecté")
-        
-        print("📂 Ouverture SFTP...")
         sftp = ssh.open_sftp()
-        print("✅ SFTP ouvert")
         
-        print(f"📁 Navigation vers {TARGET_PATH}...")
-        sftp.chdir(TARGET_PATH)
-        print("✅ Dossier trouvé")
+        # Créer les dossiers si nécessaire
+        try:
+            sftp.mkdir(CONFIG_PATH)
+        except:
+            pass
         
-        print("📤 Upload backend.json...")
+        try:
+            sftp.makedirs(CACHE_PATH)
+        except:
+            pass
+        
+        # Upload dans /config/
+        sftp.chdir(CONFIG_PATH)
         with sftp.file('backend.json', 'w') as f:
             f.write(backend_json)
-        print("✅ backend.json uploadé")
-        
-        print("📤 Upload frontend.json...")
+        with sftp.file('backend_2.json', 'w') as f:
+            f.write(backend_json)  # Copie
         with sftp.file('frontend.json', 'w') as f:
             f.write(frontend_json)
-        print("✅ frontend.json uploadé")
+        with sftp.file('frontend_2.json', 'w') as f:
+            f.write(frontend_json)  # Copie
+        
+        # Upload dans /cache/
+        sftp.chdir(CACHE_PATH)
+        with sftp.file('menus.4.json', 'w') as f:
+            f.write(menus_json)
+        with sftp.file('menus_2.4.json', 'w') as f:
+            f.write(menus_json)  # Copie
         
         sftp.close()
         ssh.close()
         
-        return {
-            "success": True,
-            "message": "Fichiers uploadés avec succès sur le serveur"
-        }
-        
-    except ImportError:
-        return {
-            "success": False,
-            "message": "❌ Paramiko n'est pas installé sur le serveur"
-        }
-    except paramiko.AuthenticationException:
-        return {
-            "success": False,
-            "message": "❌ Mot de passe incorrect"
-        }
-    except TimeoutError:
-        return {
-            "success": False,
-            "message": "❌ Timeout: le serveur Render ne peut pas atteindre ton serveur SFTP (firewall?)"
-        }
-    except paramiko.SSHException as e:
-        return {
-            "success": False,
-            "message": f"❌ Erreur SSH: {str(e)}"
-        }
+        return {"success": True, "message": "Fichiers uploadés avec succès"}
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"❌ Erreur complète: {error_details}")
-        return {
-            "success": False,
-            "message": f"❌ Erreur: {str(e)}"
-        }
+        return {"success": False, "message": str(e)}
         
 
 if __name__ == "__main__":
