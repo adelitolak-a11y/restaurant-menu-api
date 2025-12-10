@@ -621,7 +621,7 @@ async def upload_to_server(
     restaurant_id: str = Form(...),
     backend_json: str = Form(...),
     frontend_json: str = Form(...),
-    menus_json: str = Form(...),  # ✅ CORRIGÉ
+    menus_json: str = Form(...),
     ftp_password: str = Form(...)
 ):
     """Upload les fichiers JSON sur le serveur via SFTP"""
@@ -642,8 +642,8 @@ async def upload_to_server(
             username=SFTP_USER, 
             password=ftp_password, 
             timeout=30,
-            look_for_keys=False,  # ✅ AJOUTÉ
-            allow_agent=False     # ✅ AJOUTÉ
+            look_for_keys=False,
+            allow_agent=False
         )
         
         sftp = ssh.open_sftp()
@@ -678,23 +678,27 @@ async def upload_to_server(
         except:
             pass
         
-        # ✅ Upload dans /config/ avec encodage UTF-8
-        sftp.chdir(CONFIG_PATH)
-        with sftp.file('backend.json', 'w') as f:
-            f.write(backend_json.encode('utf-8'))  # ✅ CORRIGÉ
-        with sftp.file('backend_2.json', 'w') as f:
-            f.write(backend_json.encode('utf-8'))  # ✅ CORRIGÉ
-        with sftp.file('frontend.json', 'w') as f:
-            f.write(frontend_json.encode('utf-8'))  # ✅ CORRIGÉ
-        with sftp.file('frontend_2.json', 'w') as f:
-            f.write(frontend_json.encode('utf-8'))  # ✅ CORRIGÉ
+        # ✅ CORRECTION : Écrire directement les strings (comme dans test_sftp.py)
         
-        # ✅ Upload dans /cache/ avec encodage UTF-8
-        sftp.chdir(CACHE_PATH)
-        with sftp.file('menus.4.json', 'w') as f:
-            f.write(menus_json.encode('utf-8'))  # ✅ CORRIGÉ
-        with sftp.file('menus_2.4.json', 'w') as f:
-            f.write(menus_json.encode('utf-8'))  # ✅ CORRIGÉ
+        # Upload dans /config/
+        with sftp.file(f'{CONFIG_PATH}/backend.json', 'w') as f:
+            f.write(backend_json)  # ← Pas de .encode()
+        
+        with sftp.file(f'{CONFIG_PATH}/backend_2.json', 'w') as f:
+            f.write(backend_json)
+        
+        with sftp.file(f'{CONFIG_PATH}/frontend.json', 'w') as f:
+            f.write(frontend_json)
+        
+        with sftp.file(f'{CONFIG_PATH}/frontend_2.json', 'w') as f:
+            f.write(frontend_json)
+        
+        # Upload dans /cache/
+        with sftp.file(f'{CACHE_PATH}/menus.4.json', 'w') as f:
+            f.write(menus_json)
+        
+        with sftp.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
+            f.write(menus_json)
         
         sftp.close()
         ssh.close()
