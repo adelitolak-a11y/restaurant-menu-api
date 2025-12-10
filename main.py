@@ -621,7 +621,7 @@ async def upload_to_server(
     restaurant_id: str = Form(...),
     backend_json: str = Form(...),
     frontend_json: str = Form(...),
-    menus_json: str = Form(...),  # ✅ Nom correct
+    menus_json: str = Form(...),  # ✅ CORRIGÉ
     ftp_password: str = Form(...)
 ):
     """Upload les fichiers JSON sur le serveur via SFTP"""
@@ -636,7 +636,15 @@ async def upload_to_server(
         
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=SFTP_HOST, port=SFTP_PORT, username=SFTP_USER, password=ftp_password, timeout=30)
+        ssh.connect(
+            hostname=SFTP_HOST, 
+            port=SFTP_PORT, 
+            username=SFTP_USER, 
+            password=ftp_password, 
+            timeout=30,
+            look_for_keys=False,  # ✅ AJOUTÉ
+            allow_agent=False     # ✅ AJOUTÉ
+        )
         
         sftp = ssh.open_sftp()
         
@@ -670,23 +678,23 @@ async def upload_to_server(
         except:
             pass
         
-        # ✅ Upload dans /config/ (4 fichiers)
+        # ✅ Upload dans /config/ avec encodage UTF-8
         sftp.chdir(CONFIG_PATH)
         with sftp.file('backend.json', 'w') as f:
-            f.write(backend_json)
+            f.write(backend_json.encode('utf-8'))  # ✅ CORRIGÉ
         with sftp.file('backend_2.json', 'w') as f:
-            f.write(backend_json)
+            f.write(backend_json.encode('utf-8'))  # ✅ CORRIGÉ
         with sftp.file('frontend.json', 'w') as f:
-            f.write(frontend_json)
+            f.write(frontend_json.encode('utf-8'))  # ✅ CORRIGÉ
         with sftp.file('frontend_2.json', 'w') as f:
-            f.write(frontend_json)
+            f.write(frontend_json.encode('utf-8'))  # ✅ CORRIGÉ
         
-        # ✅ Upload dans /cache/ (2 fichiers)
+        # ✅ Upload dans /cache/ avec encodage UTF-8
         sftp.chdir(CACHE_PATH)
         with sftp.file('menus.4.json', 'w') as f:
-            f.write(menus_json)
+            f.write(menus_json.encode('utf-8'))  # ✅ CORRIGÉ
         with sftp.file('menus_2.4.json', 'w') as f:
-            f.write(menus_json)
+            f.write(menus_json.encode('utf-8'))  # ✅ CORRIGÉ
         
         sftp.close()
         ssh.close()
