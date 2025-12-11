@@ -178,50 +178,91 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
     
     return backend
 
-def generate_frontend_json(restaurant_name: str, colors: Dict) -> Dict:
-    """Génère le fichier frontend.json"""
+def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1) -> Dict:
+    """Génère le fichier frontend.json (version 1 ou 2)"""
     
-    frontend = {
-        "homeType": "home2",
-        "clientMenuType": "clientMenu2",
-        "cartType": "cart",
-        "payType": "lyf-prepay",
-        "menuType": "menu2",
-        "drinkMenuType": "drinkMenu2",
-        "identificationType": "ident2",
-        "isIdentificationMandatory": False,
-        "routeAfterIdentification": "pay/thankyou",
-        "foodButtonEnabled": True,
-        "happyHour": {
-            "weekDays": [],
-            "start": 24,
-            "end": 24
-        },
-        "home": {
-            "banners": [{
-                "src": "/assets/img/banners/banner.png",
-                "title": {
-                    "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
-                    "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
+    if version == 1:
+        # VERSION 1 : Format simple (3 couleurs seulement)
+        return {
+            "home": {
+                "banners": [{
+                    "src": "/assets/img/banners/banner.png",
+                    "title": {
+                        "fr": f"Bienvenue chez {restaurant_name}",
+                        "en": f"Welcome to {restaurant_name}"
+                    }
+                }],
+                "blocs": []
+            },
+            "menu": {
+                "banner": {
+                    "src": "/assets/img/formule-background.png"
                 }
-            }],
-            "blocs": []
-        },
-        "menu": {
-            "banner": {
-                "src": "/assets/img/formule-background.png"
-            }
-        },
-        "styles": {
-            "colors": {
-                "primary": colors.get("primary"),
-                "accent": colors.get("accent"),
-                "footer": colors.get("footer")
+            },
+            "styles": {
+                "colors": {
+                    "primary": colors.get("primary"),
+                    "accent": colors.get("accent"),
+                    "footer": colors.get("footer")
+                }
             }
         }
-    }
     
-    return frontend
+    else:
+        # VERSION 2 : Format complet (toutes les couleurs)
+        return {
+            "homeType": "home2",
+            "clientMenuType": "clientMenu2",
+            "cartType": "cart",
+            "payType": "lyf-prepay",
+            "menuType": "menu2",
+            "drinkMenuType": "drinkMenu2",
+            "identificationType": "ident2",
+            "isIdentificationMandatory": False,
+            "routeAfterIdentification": "pay/thankyou",
+            "foodButtonEnabled": True,
+            "happyHour": {
+                "weekDays": [],
+                "start": 24,
+                "end": 24
+            },
+            "home": {
+                "banners": [{
+                    "src": "/assets/img/banners/banner.png",
+                    "title": {
+                        "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
+                        "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
+                    }
+                }],
+                "blocs": []
+            },
+            "menu": {
+                "banner": {
+                    "src": "/assets/img/formule-background.png"
+                }
+            },
+            "styles": {
+                "colors": {
+                    "primary": colors.get("primary"),
+                    "accent": colors.get("accent"),
+                    "footer": colors.get("footer"),
+                    "footer_accent": colors.get("footer_accent"),
+                    "footer_font": "#FFFFFF",
+                    "order_page_background": "#E4DFD8",
+                    "order_page_font": "#252525",
+                    "pay_page_background": "#E4DFD8",
+                    "pay_page_font": "#252525",
+                    "form_input_background": "#F5F5F5",
+                    "form_input_font": "#8A8A8A",
+                    "button_accent_background": colors.get("button_accent_bg"),
+                    "button_accent_font": "#E4DFD8",
+                    "button_primary_background": "#E4DFD8",
+                    "button_primary_font": colors.get("button_primary_font"),
+                    "button_menu_block": "#FFFFFF",
+                    "button_menu_block_font": colors.get("button_menu_block_font")
+                }
+            }
+        }
 
 def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
     """Génère le fichier menus.4.json au format Odoo"""
@@ -309,6 +350,10 @@ async def extract_menu(
     color_primary: str = Form("#db5543"),
     color_accent: str = Form("#db5543"),
     color_footer: str = Form("#db5543"),
+    color_footer_accent: str = Form("#eb5c27"),
+    color_button_accent_bg: str = Form("#db5543"),
+    color_button_primary_font: str = Form("#db5543"),
+    color_button_menu_block_font: str = Form("#eb5c27"),
     qr_mode: str = Form("unique"),
     street: str = Form(""),
     zip_code: str = Form(""),
@@ -352,7 +397,11 @@ async def extract_menu(
                 "colors": {
                     "primary": color_primary,
                     "accent": color_accent,
-                    "footer": color_footer
+                    "footer": color_footer,
+                    "footer_accent": color_footer_accent,
+                    "button_accent_background": color_button_accent_bg,
+                    "button_primary_font": color_button_primary_font,
+                    "button_menu_block_font": color_button_menu_block_font
                 },
                 "address": {
                     "street": street,
@@ -437,14 +486,18 @@ async def generate_menu(
         colors = {
             "primary": color_primary,
             "accent": color_accent,
-            "footer": color_footer
+            "footer": color_footer,
+            "footer_accent": color_footer_accent,
+            "button_accent_background": color_button_accent_bg,
+            "button_primary_font": color_button_primary_font,
+            "button_menu_block_font": color_button_menu_block_font
         }
         
         backend_json = generate_backend_json(restaurant_name, qr_mode, address)
-        frontend_json = generate_frontend_json(restaurant_name, colors)
         menus_json = generate_menus_json(menu_data, backend_json["restaurantId"])
         backend_2_json = backend_json.copy()
-        frontend_2_json = frontend_json.copy()
+        frontend_json = generate_frontend_json(restaurant_name, colors, version=1)
+        frontend_2_json = generate_frontend_json(restaurant_name, colors, version=2)
         menus_2_json = menus_json.copy()
         
         # 4. Retourner les 3 fichiers
