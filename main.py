@@ -216,21 +216,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict) -> Dict:
             "colors": {
                 "primary": colors.get("primary"),
                 "accent": colors.get("accent"),
-                "footer": colors.get("footer"),
-                "footer_accent": colors.get("footer_accent"),
-                "footer_font": "#FFFFFF",
-                "order_page_background": "#E4DFD8",
-                "order_page_font": "#252525",
-                "pay_page_background": "#E4DFD8",
-                "pay_page_font": "#252525",
-                "form_input_background": "#F5F5F5",
-                "form_input_font": "#8A8A8A",
-                "button_accent_background": colors.get("button_accent_bg"),  # ← CORRECTION ICI
-                "button_accent_font": "#E4DFD8",
-                "button_primary_background": "#E4DFD8",
-                "button_primary_font": colors.get("button_primary_font"),
-                "button_menu_block": "#FFFFFF",
-                "button_menu_block_font": colors.get("button_menu_block_font")
+                "footer": colors.get("footer")
             }
         }
     }
@@ -323,10 +309,6 @@ async def extract_menu(
     color_primary: str = Form("#db5543"),
     color_accent: str = Form("#db5543"),
     color_footer: str = Form("#db5543"),
-    color_footer_accent: str = Form("#eb5c27"),
-    color_button_accent_bg: str = Form("#db5543"),
-    color_button_primary_font: str = Form("#db5543"),
-    color_button_menu_block_font: str = Form("#eb5c27"),
     qr_mode: str = Form("unique"),
     street: str = Form(""),
     zip_code: str = Form(""),
@@ -370,11 +352,7 @@ async def extract_menu(
                 "colors": {
                     "primary": color_primary,
                     "accent": color_accent,
-                    "footer": color_footer,
-                    "footer_accent": color_footer_accent,
-                    "button_accent_background": color_button_accent_bg,
-                    "button_primary_font": color_button_primary_font,
-                    "button_menu_block_font": color_button_menu_block_font
+                    "footer": color_footer
                 },
                 "address": {
                     "street": street,
@@ -459,11 +437,7 @@ async def generate_menu(
         colors = {
             "primary": color_primary,
             "accent": color_accent,
-            "footer": color_footer,
-            "footer_accent": color_footer_accent,
-            "button_accent_background": color_button_accent_bg,
-            "button_primary_font": color_button_primary_font,
-            "button_menu_block_font": color_button_menu_block_font
+            "footer": color_footer
         }
         
         backend_json = generate_backend_json(restaurant_name, qr_mode, address)
