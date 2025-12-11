@@ -481,10 +481,10 @@ async def generate_menu(
             "files": {
                 "backend": json.dumps(backend_json, indent=2, ensure_ascii=False),
                 "frontend": json.dumps(frontend_json, indent=2, ensure_ascii=False),
-                "menus": json.dumps(menus_json, indent=2, ensure_ascii=False),
+                "menus": json.dumps(menus_json, ensure_ascii=False, separators=(',', ':')),
                 "backend_2": json.dumps(backend_2_json, indent=2, ensure_ascii=False),
                 "frontend_2": json.dumps(frontend_2_json, indent=2, ensure_ascii=False),
-                "menus_2": json.dumps(menus_2_json, indent=2, ensure_ascii=False)
+                "menus_2": json.dumps(menus_2_json,  ensure_ascii=False, separators=(',', ':'))
             },
             "stats": {
                 "total_articles": sum(len(v) for v in menu_data.values()),  # ✅ CORRECT
