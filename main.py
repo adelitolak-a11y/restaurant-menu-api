@@ -186,7 +186,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
         return {
             "home": {
                 "banners": [{
-                    "src": "/assets/img/banners/banner.png",
+                    "src": "/assets/img/banners/home-banner-pleazze-box.png",  # ✅ CORRIGÉ
                     "title": {
                         "fr": f"Bienvenue chez {restaurant_name}",
                         "en": f"Welcome to {restaurant_name}"
@@ -196,7 +196,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/assets/img/formule-background.png"
+                    "src": "/assets/img/banners/menu-banner-pleazze-box.png"  # ✅ CORRIGÉ
                 }
             },
             "styles": {
@@ -228,7 +228,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "home": {
                 "banners": [{
-                    "src": "/assets/img/banners/banner.png",
+                    "src": "/assets/img/banners/home-banner-pleazze-box.png",  # ✅ CORRIGÉ
                     "title": {
                         "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
                         "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
@@ -238,7 +238,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/assets/img/formule-background.png"
+                    "src": "/assets/img/banners/menu-banner-pleazze-box.png"  # ✅ CORRIGÉ
                 }
             },
             "styles": {
@@ -359,9 +359,12 @@ async def extract_menu(
     zip_code: str = Form(""),
     city: str = Form(""),
     country: str = Form("France"),
+    home_banner: UploadFile = File(None),  # ✅ NOUVEAU
+    menu_banner: UploadFile = File(None),  # ✅ NOUVEAU
     menu_file: UploadFile = File(None),
     manual_menu: str = Form(None)
 ):
+    
     """Extrait le menu pour prévisualisation (sans générer les JSON finaux)"""
     try:
         # 1. Obtenir les données du menu
@@ -649,9 +652,11 @@ async def upload_to_server(
     backend_json: str = Form(...),
     frontend_json: str = Form(...),
     menus_json: str = Form(...),
-    ftp_password: str = Form(...)
+    ftp_password: str = Form(...),
+    home_banner: UploadFile = File(None),  # ✅ NOUVEAU
+    menu_banner: UploadFile = File(None)   # ✅ NOUVEAU
 ):
-    """Upload les fichiers JSON sur le serveur via SFTP"""
+    """Upload les fichiers JSON + images sur le serveur via SFTP"""
     try:
         import paramiko
         
@@ -660,6 +665,7 @@ async def upload_to_server(
         SFTP_USER = "snadmin"
         CONFIG_PATH = f"/var/www/pleazze/data/config/{restaurant_id}"
         CACHE_PATH = f"/var/www/pleazze/data/cache/{restaurant_id}/data_2025-07-29_17-25-11"
+        IMAGES_PATH = f"/var/www/pleazze/data/assets/img/banners"  # ✅ NOUVEAU
         
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -675,7 +681,7 @@ async def upload_to_server(
         
         sftp = ssh.open_sftp()
         
-        # Créer les dossiers CONFIG si nécessaire
+        # Créer les dossiers CONFIG
         try:
             parts = CONFIG_PATH.split('/')
             current = ''
@@ -690,7 +696,7 @@ async def upload_to_server(
         except:
             pass
         
-        # Créer les dossiers CACHE si nécessaire
+        # Créer les dossiers CACHE
         try:
             parts = CACHE_PATH.split('/')
             current = ''
@@ -705,11 +711,9 @@ async def upload_to_server(
         except:
             pass
         
-        # ✅ CORRECTION : Écrire directement les strings (comme dans test_sftp.py)
-        
-        # Upload dans /config/
+        # Upload JSON dans /config/
         with sftp.file(f'{CONFIG_PATH}/backend.json', 'w') as f:
-            f.write(backend_json)  # ← Pas de .encode()
+            f.write(backend_json)
         
         with sftp.file(f'{CONFIG_PATH}/backend_2.json', 'w') as f:
             f.write(backend_json)
@@ -720,27 +724,42 @@ async def upload_to_server(
         with sftp.file(f'{CONFIG_PATH}/frontend_2.json', 'w') as f:
             f.write(frontend_json)
         
-        # Upload dans /cache/
+        # Upload JSON dans /cache/
         with sftp.file(f'{CACHE_PATH}/menus.4.json', 'w') as f:
             f.write(menus_json)
         
         with sftp.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
             f.write(menus_json)
         
+        # ✅ NOUVEAU : Upload des images
+        uploaded_images = []
+        
+        if home_banner:
+            home_content = await home_banner.read()
+            with sftp.file(f'{IMAGES_PATH}/home-banner-pleazze-box.png', 'wb') as f:
+                f.write(home_content)
+            uploaded_images.append("home-banner-pleazze-box.png")
+        
+        if menu_banner:
+            menu_content = await menu_banner.read()
+            with sftp.file(f'{IMAGES_PATH}/menu-banner-pleazze-box.png', 'wb') as f:
+                f.write(menu_content)
+            uploaded_images.append("menu-banner-pleazze-box.png")
+        
         sftp.close()
         ssh.close()
         
         return {
             "success": True, 
-            "message": "✅ 6 fichiers uploadés avec succès",
+            "message": f"✅ {6 + len(uploaded_images)} fichiers uploadés avec succès",
             "details": {
                 "config": ["backend.json", "backend_2.json", "frontend.json", "frontend_2.json"],
-                "cache": ["menus.4.json", "menus_2.4.json"]
+                "cache": ["menus.4.json", "menus_2.4.json"],
+                "images": uploaded_images if uploaded_images else ["Aucune image uploadée"]
             }
         }
     except Exception as e:
         return {"success": False, "message": f"Erreur SFTP: {str(e)}"}
-        
 
 if __name__ == "__main__":
     import uvicorn
