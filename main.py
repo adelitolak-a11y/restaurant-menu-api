@@ -8,6 +8,8 @@ from typing import Dict, List
 import requests
 from dotenv import load_dotenv
 import paramiko
+from PIL import Image
+import io
 
 load_dotenv()
 
@@ -182,11 +184,10 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
     """Génère le fichier frontend.json (version 1 ou 2)"""
     
     if version == 1:
-        # VERSION 1 : Format simple (3 couleurs seulement)
         return {
             "home": {
                 "banners": [{
-                    "src": "/assets/img/banners/home-banner-pleazze-box.png",  # ✅ CORRIGÉ
+                    "src": "/data/config/abdel/old/home-banner-pleazze-box.png",  # ✅ NOUVEAU CHEMIN
                     "title": {
                         "fr": f"Bienvenue chez {restaurant_name}",
                         "en": f"Welcome to {restaurant_name}"
@@ -196,7 +197,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/assets/img/banners/menu-banner-pleazze-box.png"  # ✅ CORRIGÉ
+                    "src": "/data/config/abdel/old/menu-banner-pleazze-box.png"  # ✅ NOUVEAU CHEMIN
                 }
             },
             "styles": {
@@ -207,7 +208,6 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
                 }
             }
         }
-    
     else:
         # VERSION 2 : Format complet (toutes les couleurs)
         return {
@@ -228,7 +228,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "home": {
                 "banners": [{
-                    "src": "/assets/img/banners/home-banner-pleazze-box.png",  # ✅ CORRIGÉ
+                    "src": "/data/config/abdel/old/home-banner-pleazze-box.png",  # ✅ NOUVEAU CHEMIN
                     "title": {
                         "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
                         "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
@@ -238,7 +238,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/assets/img/banners/menu-banner-pleazze-box.png"  # ✅ CORRIGÉ
+                    "src": "/data/config/abdel/old/menu-banner-pleazze-box.png"  # ✅ NOUVEAU CHEMIN
                 }
             },
             "styles": {
@@ -646,7 +646,6 @@ async def test_network():
     except Exception as e:
         return {"status": f"❌ Erreur: {str(e)}"}
 
-@app.post("/upload-to-server")
 async def upload_to_server(
     restaurant_id: str = Form(...),
     backend_json: str = Form(...),
@@ -657,20 +656,30 @@ async def upload_to_server(
     menu_banner: UploadFile = File(None)
 ):
     """Upload les fichiers JSON + images sur le serveur via SFTP"""
+    
+    def convert_to_png(image_file):
+        """Convertit n'importe quelle image en PNG"""
+        image_bytes = image_file.read()
+        image = Image.open(io.BytesIO(image_bytes))
+        
+        # Convertir en PNG
+        png_buffer = io.BytesIO()
+        image.save(png_buffer, format='PNG')
+        png_buffer.seek(0)
+        return png_buffer.getvalue()
+    
     try:
         import paramiko
         
         SFTP_HOST = "178.32.198.72"
         SFTP_USER = "snadmin"
         
-        # ============================================
-        # CONNEXION 1 : Port 2266 pour les JSON
-        # ============================================
-        ssh_json = paramiko.SSHClient()
-        ssh_json.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh_json.connect(
+        # Connexion unique sur port 2266
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(
             hostname=SFTP_HOST, 
-            port=2266,  # ✅ Port 2266 pour les JSON
+            port=2266,
             username=SFTP_USER, 
             password=ftp_password, 
             timeout=30,
@@ -678,118 +687,65 @@ async def upload_to_server(
             allow_agent=False
         )
         
-        sftp_json = ssh_json.open_sftp()
+        sftp = ssh.open_sftp()
         
         CONFIG_PATH = f"/var/www/pleazze/data/config/{restaurant_id}"
         CACHE_PATH = f"/var/www/pleazze/data/cache/{restaurant_id}/data_2025-07-29_17-25-11"
+        IMAGES_PATH = f"/var/www/pleazze/data/config/{restaurant_id}/old"
         
-        # Créer les dossiers CONFIG
-        try:
-            parts = CONFIG_PATH.split('/')
-            current = ''
-            for part in parts:
-                if not part:
-                    continue
-                current += '/' + part
-                try:
-                    sftp_json.mkdir(current)
-                except:
-                    pass
-        except:
-            pass
-        
-        # Créer les dossiers CACHE
-        try:
-            parts = CACHE_PATH.split('/')
-            current = ''
-            for part in parts:
-                if not part:
-                    continue
-                current += '/' + part
-                try:
-                    sftp_json.mkdir(current)
-                except:
-                    pass
-        except:
-            pass
-        
-        # Upload JSON dans /config/
-        with sftp_json.file(f'{CONFIG_PATH}/backend.json', 'w') as f:
-            f.write(backend_json)
-        
-        with sftp_json.file(f'{CONFIG_PATH}/backend_2.json', 'w') as f:
-            f.write(backend_json)
-        
-        with sftp_json.file(f'{CONFIG_PATH}/frontend.json', 'w') as f:
-            f.write(frontend_json)
-        
-        with sftp_json.file(f'{CONFIG_PATH}/frontend_2.json', 'w') as f:
-            f.write(frontend_json)
-        
-        # Upload JSON dans /cache/
-        with sftp_json.file(f'{CACHE_PATH}/menus.4.json', 'w') as f:
-            f.write(menus_json)
-        
-        with sftp_json.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
-            f.write(menus_json)
-        
-        # Fermer la connexion JSON
-        sftp_json.close()
-        ssh_json.close()
-        
-        # ============================================
-        # CONNEXION 2 : Port 22 pour les IMAGES
-        # ============================================
-        uploaded_images = []
-        
-        if home_banner or menu_banner:
-            ssh_images = paramiko.SSHClient()
-            ssh_images.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh_images.connect(
-                hostname=SFTP_HOST, 
-                port=22,  # ✅ Port 22 pour les images
-                username=SFTP_USER, 
-                password=ftp_password, 
-                timeout=30,
-                look_for_keys=False,
-                allow_agent=False
-            )
-            
-            sftp_images = ssh_images.open_sftp()
-            
-            IMAGES_PATH = "/var/www/pleazze/static/adel"
-            
-            # Créer le dossier /static/adel s'il n'existe pas
+        # Créer les dossiers
+        for path in [CONFIG_PATH, CACHE_PATH, IMAGES_PATH]:
             try:
-                parts = IMAGES_PATH.split('/')
+                parts = path.split('/')
                 current = ''
                 for part in parts:
                     if not part:
                         continue
                     current += '/' + part
                     try:
-                        sftp_images.mkdir(current)
+                        sftp.mkdir(current)
                     except:
                         pass
             except:
                 pass
-            
-            # Upload des images
-            if home_banner:
-                home_content = await home_banner.read()
-                with sftp_images.file(f'{IMAGES_PATH}/home-banner-pleazze-box.png', 'wb') as f:
-                    f.write(home_content)
-                uploaded_images.append("home-banner-pleazze-box.png")
-            
-            if menu_banner:
-                menu_content = await menu_banner.read()
-                with sftp_images.file(f'{IMAGES_PATH}/menu-banner-pleazze-box.png', 'wb') as f:
-                    f.write(menu_content)
-                uploaded_images.append("menu-banner-pleazze-box.png")
-            
-            # Fermer la connexion images
-            sftp_images.close()
-            ssh_images.close()
+        
+        # Upload JSON dans /config/
+        with sftp.file(f'{CONFIG_PATH}/backend.json', 'w') as f:
+            f.write(backend_json)
+        
+        with sftp.file(f'{CONFIG_PATH}/backend_2.json', 'w') as f:
+            f.write(backend_json)
+        
+        with sftp.file(f'{CONFIG_PATH}/frontend.json', 'w') as f:
+            f.write(frontend_json)
+        
+        with sftp.file(f'{CONFIG_PATH}/frontend_2.json', 'w') as f:
+            f.write(frontend_json)
+        
+        # Upload JSON dans /cache/
+        with sftp.file(f'{CACHE_PATH}/menus.4.json', 'w') as f:
+            f.write(menus_json)
+        
+        with sftp.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
+            f.write(menus_json)
+        
+        # Upload des images (converties en PNG)
+        uploaded_images = []
+        
+        if home_banner:
+            png_content = convert_to_png(home_banner.file)
+            with sftp.file(f'{IMAGES_PATH}/home-banner-pleazze-box.png', 'wb') as f:
+                f.write(png_content)
+            uploaded_images.append("home-banner-pleazze-box.png")
+        
+        if menu_banner:
+            png_content = convert_to_png(menu_banner.file)
+            with sftp.file(f'{IMAGES_PATH}/menu-banner-pleazze-box.png', 'wb') as f:
+                f.write(png_content)
+            uploaded_images.append("menu-banner-pleazze-box.png")
+        
+        sftp.close()
+        ssh.close()
         
         return {
             "success": True, 
