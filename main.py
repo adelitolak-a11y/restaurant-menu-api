@@ -211,7 +211,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
         return {
             "home": {
                 "banners": [{
-                    "src": "/data/config/abdel/old/home-banner-pleazze-box.png",  # ✅ NOUVEAU CHEMIN
+                    "src": "/data/config/abdel/old/home-banner-pleazze-box.png",
                     "title": {
                         "fr": f"Bienvenue chez {restaurant_name}",
                         "en": f"Welcome to {restaurant_name}"
@@ -221,7 +221,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/data/config/abdel/old/menu-banner-pleazze-box.png"  # ✅ NOUVEAU CHEMIN
+                    "src": "/data/config/abdel/old/menu-banner-pleazze-box.png"
                 }
             },
             "styles": {
@@ -233,7 +233,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             }
         }
     else:
-        # VERSION 2 : Format complet (toutes les couleurs)
+        # VERSION 2 : Format complet avec les bons chemins
         return {
             "homeType": "home2",
             "clientMenuType": "clientMenu2",
@@ -252,7 +252,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "home": {
                 "banners": [{
-                    "src": "/data/config/abdel/old/home-banner-pleazze-box.png",  # ✅ NOUVEAU CHEMIN
+                    "src": "/data/config/abdel/old/home-banner-pleazze-box.png",  # ✅ Chemin réel
                     "title": {
                         "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
                         "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
@@ -262,7 +262,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/data/config/abdel/old/menu-banner-pleazze-box.png"  # ✅ NOUVEAU CHEMIN
+                    "src": "/data/config/abdel/old/menu-banner-pleazze-box.png"  # ✅ Chemin réel
                 }
             },
             "styles": {
