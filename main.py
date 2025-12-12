@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import paramiko
 from PIL import Image
 import io
+import requests
 
 load_dotenv()
 
@@ -841,6 +842,59 @@ async def upload_to_server(
         }
     except Exception as e:
         return {"success": False, "message": f"Erreur SFTP: {str(e)}"}
+    
+@app.post("/trigger-qr-generation")
+async def trigger_qr_generation(
+    restaurant_id: str = Form(...),
+    table_id: str = Form("100"),
+    scenario: str = Form("2")
+):
+    """Déclenche la génération du QR code automatiquement sur le serveur"""
+    try:
+        import requests
+        
+        # URL du générateur JWT
+        jwt_url = "https://preprod-pleazze.stepnet.fr/jwt"
+        
+        # Préparer les paramètres
+        params = {
+            "restaurantId": restaurant_id,
+            "tableId": table_id,
+            "scenario": scenario
+        }
+        
+        # Faire la requête pour générer le JWT et mettre à jour le serveur
+        response = requests.get(jwt_url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            # Générer l'URL du QR code
+            qr_url = f"https://preprod-pleazze.stepnet.fr/fr/?restaurantId={restaurant_id}&tableId={table_id}&seatId=seatId"
+            qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={requests.utils.quote(qr_url)}"
+            
+            return {
+                "success": True,
+                "message": "✅ QR Code généré et synchronisé avec le serveur",
+                "qr_url": qr_url,
+                "qr_image_url": qr_image_url,
+                "restaurant_id": restaurant_id,
+                "table_id": table_id
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"❌ Erreur lors de la génération (status: {response.status_code})"
+            }
+            
+    except requests.exceptions.Timeout:
+        return {
+            "success": False,
+            "message": "❌ Timeout lors de la connexion au générateur"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"❌ Erreur: {str(e)}"
+        }
     
 
 @app.post("/verify-uploaded-files")
