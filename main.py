@@ -842,8 +842,6 @@ async def upload_to_server(
     except Exception as e:
         return {"success": False, "message": f"Erreur SFTP: {str(e)}"}
     
-    
-    
 
 @app.post("/verify-uploaded-files")
 async def verify_uploaded_files(
