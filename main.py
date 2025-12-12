@@ -209,8 +209,8 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
     
     # Créer un nom de fichier sécurisé
     safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
-    home_banner_path = f"/var/www/pleazze/data/config/abdel/old/home-banner-{safe_restaurant_name}.png"
-    menu_banner_path = f"/var/www/pleazze/data/config/abdel/old/menu-banner-{safe_restaurant_name}.png"
+    home_banner_path = f"old/home-banner-{safe_restaurant_name}.png"
+    menu_banner_path = f"old/menu-banner-{safe_restaurant_name}.png"
     
     if version == 1:
         return {
@@ -771,15 +771,25 @@ async def upload_to_server(
         if home_banner:
             png_content = convert_to_png(home_banner.file)
             filename = f'home-banner-{safe_restaurant_name}.png'
-            with sftp.file(f'{IMAGES_PATH}/{filename}', 'wb') as f:
+            file_path = f'{IMAGES_PATH}/{filename}'
+            
+            with sftp.file(file_path, 'wb') as f:
                 f.write(png_content)
+            
+            # ✅ AJOUTER : Définir les permissions du fichier
+            sftp.chmod(file_path, 0o644)
             uploaded_images.append(filename)
         
         if menu_banner:
             png_content = convert_to_png(menu_banner.file)
             filename = f'menu-banner-{safe_restaurant_name}.png'
-            with sftp.file(f'{IMAGES_PATH}/{filename}', 'wb') as f:
+            file_path = f'{IMAGES_PATH}/{filename}'
+            
+            with sftp.file(file_path, 'wb') as f:
                 f.write(png_content)
+            
+            # ✅ AJOUTER : Définir les permissions du fichier
+            sftp.chmod(file_path, 0o644)
             uploaded_images.append(filename)
         
         sftp.close()
@@ -796,6 +806,77 @@ async def upload_to_server(
         }
     except Exception as e:
         return {"success": False, "message": f"Erreur SFTP: {str(e)}"}
+    
+
+@app.post("/verify-uploaded-files")
+async def verify_uploaded_files(
+    restaurant_name: str = Form(...),
+    ftp_password: str = Form(...)
+):
+    """Vérifie que les fichiers uploadés existent bien sur le serveur"""
+    try:
+        import paramiko
+        
+        SFTP_HOST = "178.32.198.72"
+        SFTP_USER = "snadmin"
+        
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(
+            hostname=SFTP_HOST, 
+            port=2266,
+            username=SFTP_USER, 
+            password=ftp_password, 
+            timeout=30,
+            look_for_keys=False,
+            allow_agent=False
+        )
+        
+        sftp = ssh.open_sftp()
+        
+        IMAGES_PATH = "/var/www/pleazze/data/config/abdel/old"
+        safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
+        
+        results = {
+            "success": True,
+            "files_found": [],
+            "files_missing": [],
+            "file_details": []
+        }
+        
+        # Vérifier home-banner
+        home_banner_file = f'home-banner-{safe_restaurant_name}.png'
+        try:
+            file_stat = sftp.stat(f'{IMAGES_PATH}/{home_banner_file}')
+            results["files_found"].append(home_banner_file)
+            results["file_details"].append({
+                "name": home_banner_file,
+                "size": file_stat.st_size,
+                "permissions": oct(file_stat.st_mode)[-3:]
+            })
+        except FileNotFoundError:
+            results["files_missing"].append(home_banner_file)
+        
+        # Vérifier menu-banner
+        menu_banner_file = f'menu-banner-{safe_restaurant_name}.png'
+        try:
+            file_stat = sftp.stat(f'{IMAGES_PATH}/{menu_banner_file}')
+            results["files_found"].append(menu_banner_file)
+            results["file_details"].append({
+                "name": menu_banner_file,
+                "size": file_stat.st_size,
+                "permissions": oct(file_stat.st_mode)[-3:]
+            })
+        except FileNotFoundError:
+            results["files_missing"].append(menu_banner_file)
+        
+        sftp.close()
+        ssh.close()
+        
+        return results
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
