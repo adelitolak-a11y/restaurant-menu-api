@@ -207,10 +207,10 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
 def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1) -> Dict:
     """Génère le fichier frontend.json (version 1 ou 2)"""
     
-    # Créer un nom de fichier sécurisé
+    # ✅ NOUVEAU : Chemins selon les instructions de Youri
     safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
-    home_banner_path = f"old/home-banner-{safe_restaurant_name}.png"
-    menu_banner_path = f"old/menu-banner-{safe_restaurant_name}.png"
+    home_banner_path = f"/static/adel/home-banner-{safe_restaurant_name}.png"
+    menu_banner_path = f"/static/adel/menu-banner-{safe_restaurant_name}.png"
     
     if version == 1:
         return {
@@ -257,7 +257,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "home": {
                 "banners": [{
-                    "src": home_banner_path,  # ✅ Chemin dynamique
+                    "src": home_banner_path,
                     "title": {
                         "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
                         "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
@@ -267,7 +267,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": menu_banner_path  # ✅ Chemin dynamique
+                    "src": menu_banner_path
                 }
             },
             "styles": {
@@ -680,7 +680,7 @@ async def test_network():
 @app.post("/upload-to-server")
 async def upload_to_server(
     restaurant_id: str = Form(...),
-    restaurant_name: str = Form(...),  # ← AJOUTER CE PARAMÈTRE
+    restaurant_name: str = Form(...),
     backend_json: str = Form(...),
     backend_2_json: str = Form(...),
     frontend_json: str = Form(...),
@@ -707,6 +707,7 @@ async def upload_to_server(
     try:
         import paramiko
         
+        # ✅ CONNEXION 1 : Port 2266 pour les JSON
         SFTP_HOST = "178.32.198.72"
         SFTP_USER = "snadmin"
         
@@ -714,7 +715,7 @@ async def upload_to_server(
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(
             hostname=SFTP_HOST, 
-            port=2266,
+            port=2266,  # Port 2266 pour les JSON
             username=SFTP_USER, 
             password=ftp_password, 
             timeout=30,
@@ -726,10 +727,9 @@ async def upload_to_server(
         
         CONFIG_PATH = f"/var/www/pleazze/data/config/abdel"
         CACHE_PATH = f"/var/www/pleazze/data/cache/abdel/data_2025-07-29_17-25-11"
-        IMAGES_PATH = f"/var/www/pleazze/data/config/abdel/old"
         
-        # Créer les dossiers
-        for path in [CONFIG_PATH, CACHE_PATH, IMAGES_PATH]:
+        # Créer les dossiers pour JSON
+        for path in [CONFIG_PATH, CACHE_PATH]:
             try:
                 parts = path.split('/')
                 current = ''
@@ -764,36 +764,71 @@ async def upload_to_server(
         with sftp.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
             f.write(menus_2_json)
         
-        # ✅ NOUVEAU : Noms de fichiers dynamiques basés sur le restaurant
-        uploaded_images = []
-        safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
-        
-        if home_banner:
-            png_content = convert_to_png(home_banner.file)
-            filename = f'home-banner-{safe_restaurant_name}.png'
-            file_path = f'{IMAGES_PATH}/{filename}'
-            
-            with sftp.file(file_path, 'wb') as f:
-                f.write(png_content)
-            
-            # ✅ AJOUTER : Définir les permissions du fichier
-            sftp.chmod(file_path, 0o644)
-            uploaded_images.append(filename)
-        
-        if menu_banner:
-            png_content = convert_to_png(menu_banner.file)
-            filename = f'menu-banner-{safe_restaurant_name}.png'
-            file_path = f'{IMAGES_PATH}/{filename}'
-            
-            with sftp.file(file_path, 'wb') as f:
-                f.write(png_content)
-            
-            # ✅ AJOUTER : Définir les permissions du fichier
-            sftp.chmod(file_path, 0o644)
-            uploaded_images.append(filename)
-        
         sftp.close()
         ssh.close()
+        
+        # ✅ CONNEXION 2 : Port 22 pour les images
+        uploaded_images = []
+        
+        if home_banner or menu_banner:
+            ssh_images = paramiko.SSHClient()
+            ssh_images.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh_images.connect(
+                hostname=SFTP_HOST,
+                port=22,  # ✅ Port 22 pour les images
+                username=SFTP_USER,
+                password=ftp_password,
+                timeout=30,
+                look_for_keys=False,
+                allow_agent=False
+            )
+            
+            sftp_images = ssh_images.open_sftp()
+            
+            # ✅ Nouveau chemin selon Youri
+            IMAGES_PATH = "/var/www/pleazze/static/adel"
+            
+            # Créer le dossier images
+            try:
+                parts = IMAGES_PATH.split('/')
+                current = ''
+                for part in parts:
+                    if not part:
+                        continue
+                    current += '/' + part
+                    try:
+                        sftp_images.mkdir(current)
+                    except:
+                        pass
+            except:
+                pass
+            
+            safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
+            
+            if home_banner:
+                png_content = convert_to_png(home_banner.file)
+                filename = f'home-banner-{safe_restaurant_name}.png'
+                file_path = f'{IMAGES_PATH}/{filename}'
+                
+                with sftp_images.file(file_path, 'wb') as f:
+                    f.write(png_content)
+                
+                sftp_images.chmod(file_path, 0o644)
+                uploaded_images.append(filename)
+            
+            if menu_banner:
+                png_content = convert_to_png(menu_banner.file)
+                filename = f'menu-banner-{safe_restaurant_name}.png'
+                file_path = f'{IMAGES_PATH}/{filename}'
+                
+                with sftp_images.file(file_path, 'wb') as f:
+                    f.write(png_content)
+                
+                sftp_images.chmod(file_path, 0o644)
+                uploaded_images.append(filename)
+            
+            sftp_images.close()
+            ssh_images.close()
         
         return {
             "success": True, 
@@ -813,18 +848,19 @@ async def verify_uploaded_files(
     restaurant_name: str = Form(...),
     ftp_password: str = Form(...)
 ):
-    """Vérifie que les fichiers uploadés existent bien sur le serveur"""
+    """Vérifie uniquement que les images sont bien uploadées"""
     try:
         import paramiko
         
         SFTP_HOST = "178.32.198.72"
         SFTP_USER = "snadmin"
         
+        # ✅ Connexion sur port 22 pour vérifier les images
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(
             hostname=SFTP_HOST, 
-            port=2266,
+            port=22,  # ✅ Port 22
             username=SFTP_USER, 
             password=ftp_password, 
             timeout=30,
@@ -834,14 +870,16 @@ async def verify_uploaded_files(
         
         sftp = ssh.open_sftp()
         
-        IMAGES_PATH = "/var/www/pleazze/data/config/abdel/old"
+        # ✅ Nouveau chemin
+        IMAGES_PATH = "/var/www/pleazze/static/adel"
         safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
         
         results = {
             "success": True,
             "files_found": [],
             "files_missing": [],
-            "file_details": []
+            "file_details": [],
+            "urls": []
         }
         
         # Vérifier home-banner
@@ -854,6 +892,7 @@ async def verify_uploaded_files(
                 "size": file_stat.st_size,
                 "permissions": oct(file_stat.st_mode)[-3:]
             })
+            results["urls"].append(f"https://preprod-pleazze.stepnet.fr/static/adel/{home_banner_file}")
         except FileNotFoundError:
             results["files_missing"].append(home_banner_file)
         
@@ -867,6 +906,7 @@ async def verify_uploaded_files(
                 "size": file_stat.st_size,
                 "permissions": oct(file_stat.st_mode)[-3:]
             })
+            results["urls"].append(f"https://preprod-pleazze.stepnet.fr/static/adel/{menu_banner_file}")
         except FileNotFoundError:
             results["files_missing"].append(menu_banner_file)
         
