@@ -207,11 +207,16 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
 def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1) -> Dict:
     """Génère le fichier frontend.json (version 1 ou 2)"""
     
+    # Créer un nom de fichier sécurisé
+    safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
+    home_banner_path = f"/var/www/pleazze/data/config/abdel/old/home-banner-{safe_restaurant_name}.png"
+    menu_banner_path = f"/var/www/pleazze/data/config/abdel/old/menu-banner-{safe_restaurant_name}.png"
+    
     if version == 1:
         return {
             "home": {
                 "banners": [{
-                    "src": "/var/www/pleazze/data/config/abdel/old/home-banner-pleazze-box.png",
+                    "src": home_banner_path,
                     "title": {
                         "fr": f"Bienvenue chez {restaurant_name}",
                         "en": f"Welcome to {restaurant_name}"
@@ -221,7 +226,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/var/www/pleazze/data/config/abdel/old/menu-banner-pleazze-box.png"
+                    "src": menu_banner_path
                 }
             },
             "styles": {
@@ -233,7 +238,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             }
         }
     else:
-        # VERSION 2 : Format complet avec les bons chemins
+        # VERSION 2
         return {
             "homeType": "home2",
             "clientMenuType": "clientMenu2",
@@ -252,7 +257,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "home": {
                 "banners": [{
-                    "src": "/var/www/pleazze/data/config/abdel/old/home-banner-pleazze-box.png",  # ✅ Chemin réel
+                    "src": home_banner_path,  # ✅ Chemin dynamique
                     "title": {
                         "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
                         "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
@@ -262,7 +267,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/var/www/pleazze/data/config/abdel/old/menu-banner-pleazze-box.png"  # ✅ Chemin réel
+                    "src": menu_banner_path  # ✅ Chemin dynamique
                 }
             },
             "styles": {
@@ -675,12 +680,13 @@ async def test_network():
 @app.post("/upload-to-server")
 async def upload_to_server(
     restaurant_id: str = Form(...),
+    restaurant_name: str = Form(...),  # ← AJOUTER CE PARAMÈTRE
     backend_json: str = Form(...),
-    backend_2_json: str = Form(...),  # ← AJOUTER
+    backend_2_json: str = Form(...),
     frontend_json: str = Form(...),
-    frontend_2_json: str = Form(...),  # ← AJOUTER
+    frontend_2_json: str = Form(...),
     menus_json: str = Form(...),
-    menus_2_json: str = Form(...),  # ← AJOUTER
+    menus_2_json: str = Form(...),
     ftp_password: str = Form(...),
     home_banner: UploadFile = File(None),
     menu_banner: UploadFile = File(None)
@@ -704,7 +710,6 @@ async def upload_to_server(
         SFTP_HOST = "178.32.198.72"
         SFTP_USER = "snadmin"
         
-        # Connexion unique sur port 2266
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(
@@ -744,35 +749,38 @@ async def upload_to_server(
             f.write(backend_json)
 
         with sftp.file(f'{CONFIG_PATH}/backend_2.json', 'w') as f:
-            f.write(backend_2_json)  # ← Utiliser backend_2_json au lieu de backend_json
+            f.write(backend_2_json)
 
         with sftp.file(f'{CONFIG_PATH}/frontend.json', 'w') as f:
             f.write(frontend_json)
 
         with sftp.file(f'{CONFIG_PATH}/frontend_2.json', 'w') as f:
-            f.write(frontend_2_json)  # ← Utiliser frontend_2_json au lieu de frontend_json
+            f.write(frontend_2_json)
 
         # Upload JSON dans /cache/
         with sftp.file(f'{CACHE_PATH}/menus.4.json', 'w') as f:
             f.write(menus_json)
 
         with sftp.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
-            f.write(menus_2_json)  # ← Utiliser menus_2_json au lieu de menus_json
+            f.write(menus_2_json)
         
-        # Upload des images (converties en PNG)
+        # ✅ NOUVEAU : Noms de fichiers dynamiques basés sur le restaurant
         uploaded_images = []
+        safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
         
         if home_banner:
             png_content = convert_to_png(home_banner.file)
-            with sftp.file(f'{IMAGES_PATH}/home-banner-pleazze-box.png', 'wb') as f:
+            filename = f'home-banner-{safe_restaurant_name}.png'
+            with sftp.file(f'{IMAGES_PATH}/{filename}', 'wb') as f:
                 f.write(png_content)
-            uploaded_images.append("home-banner-pleazze-box.png")
+            uploaded_images.append(filename)
         
         if menu_banner:
             png_content = convert_to_png(menu_banner.file)
-            with sftp.file(f'{IMAGES_PATH}/menu-banner-pleazze-box.png', 'wb') as f:
+            filename = f'menu-banner-{safe_restaurant_name}.png'
+            with sftp.file(f'{IMAGES_PATH}/{filename}', 'wb') as f:
                 f.write(png_content)
-            uploaded_images.append("menu-banner-pleazze-box.png")
+            uploaded_images.append(filename)
         
         sftp.close()
         ssh.close()
