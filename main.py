@@ -211,7 +211,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
         return {
             "home": {
                 "banners": [{
-                    "src": "/var/www/pleazze/data/config/abdel/old/home-banner-pleazze-box.png",
+                    "src": "/var/www/pleazze/data/config/abdel/old/home{restaurant_name}.png",
                     "title": {
                         "fr": f"Bienvenue chez {restaurant_name}",
                         "en": f"Welcome to {restaurant_name}"
@@ -221,7 +221,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/var/www/pleazze/data/config/abdel/old/menu-banner-pleazze-box.png"
+                    "src": "/var/www/pleazze/data/config/abdel/old/menu{restaurant_name}.png"
                 }
             },
             "styles": {
@@ -252,7 +252,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "home": {
                 "banners": [{
-                    "src": "/var/www/pleazze/data/config/abdel/old/home-banner-pleazze-box.png",  # ✅ Chemin réel
+                    "src": "/var/www/pleazze/data/config/abdel/old/home{restaurant_name}.png",  # ✅ Chemin réel
                     "title": {
                         "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
                         "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
@@ -262,7 +262,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             },
             "menu": {
                 "banner": {
-                    "src": "/var/www/pleazze/data/config/abdel/old/menu-banner-pleazze-box.png"  # ✅ Chemin réel
+                    "src": "/var/www/pleazze/data/config/abdel/old/menu{restaurant_name}.png"  # ✅ Chemin réel
                 }
             },
             "styles": {
@@ -764,15 +764,15 @@ async def upload_to_server(
         
         if home_banner:
             png_content = convert_to_png(home_banner.file)
-            with sftp.file(f'{IMAGES_PATH}/home-banner-pleazze-box.png', 'wb') as f:
+            with sftp.file(f'{IMAGES_PATH}/home{restaurant_id}.png', 'wb') as f:
                 f.write(png_content)
-            uploaded_images.append("home-banner-pleazze-box.png")
+            uploaded_images.append("home{restaurant_id}.png")
         
         if menu_banner:
             png_content = convert_to_png(menu_banner.file)
-            with sftp.file(f'{IMAGES_PATH}/menu-banner-pleazze-box.png', 'wb') as f:
+            with sftp.file(f'{IMAGES_PATH}/menu{restaurant_id}.png', 'wb') as f:
                 f.write(png_content)
-            uploaded_images.append("menu-banner-pleazze-box.png")
+            uploaded_images.append("menu{restaurant_id}.png")
         
         sftp.close()
         ssh.close()
