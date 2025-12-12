@@ -128,55 +128,79 @@ RÈGLES:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Groq API: {str(e)}")
 
-def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odoo_config: Dict = None) -> Dict:
-    """Génère le fichier backend.json"""
+def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odoo_config: Dict = None, version: int = 1) -> Dict:
+    """Génère le fichier backend.json (version 1 ou 2)"""
     
-    backend = {
-        "type": "Odoo",
-        "odooUrl": odoo_config.get("url", ODOO_URL) if odoo_config else ODOO_URL,
-        "odooDb": odoo_config.get("db", ODOO_DB) if odoo_config else ODOO_DB,
-        "odooLogin": odoo_config.get("login", ODOO_USERNAME) if odoo_config else ODOO_USERNAME,
-        "odooPwd": odoo_config.get("password", ODOO_PASSWORD) if odoo_config else ODOO_PASSWORD,
-        "provenanceContact": "Pleazze",
-        "defaultWaiterId": 2,
-        "odooCompanyId": "",
-        "odooTipId": 3134,
-        "sms": {
-            "type": "SMSLinker",
-            "ident": {
-                "subject": f"{restaurant_name}",
-                "content": "Votre code d'identification : $CODE$"
+    if version == 1:
+        # Version complète (actuelle)
+        backend = {
+            "type": "Odoo",
+            "odooUrl": odoo_config.get("url", ODOO_URL) if odoo_config else ODOO_URL,
+            "odooDb": odoo_config.get("db", ODOO_DB) if odoo_config else ODOO_DB,
+            "odooLogin": odoo_config.get("login", ODOO_USERNAME) if odoo_config else ODOO_USERNAME,
+            "odooPwd": odoo_config.get("password", ODOO_PASSWORD) if odoo_config else ODOO_PASSWORD,
+            "provenanceContact": "Pleazze",
+            "defaultWaiterId": 2,
+            "odooCompanyId": "",
+            "odooTipId": 3134,
+            "sms": {
+                "type": "SMSLinker",
+                "ident": {
+                    "subject": f"{restaurant_name}",
+                    "content": "Votre code d'identification : $CODE$"
+                }
+            },
+            "payment": {
+                "paymentId": "4",
+                "stripe_secret_key": "sk_test_...",
+                "lyfUrl": "https://sandbox-webpos.lyf.eu/fr/plugin/PaymentCb.aspx",
+                "lyfPosId": "",
+                "lyfPosKey": ""
+            },
+            "address": address,
+            "menu": {
+                "menus": [],
+                "sections": [17, 18],
+                "drinks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+                "courses": {
+                    "choicesForCourse": {},
+                    "courseByGroup": {},
+                    "courseLabels": {
+                        "1": {"fr": "Apéro", "en": "Apetizer", "class": "brown-courseId", "courseId": "1"},
+                        "2": {"fr": "Entrée", "en": "Starter", "class": "green-courseId", "courseId": "2"},
+                        "3": {"fr": "Plat", "en": "Main", "class": "blue-courseId", "courseId": "3"},
+                        "4": {"fr": "Dessert", "en": "Dessert", "class": "yellow-courseId", "courseId": "4"}
+                    },
+                    "courseOrder": ["1", "2", "3", "4"]
+                }
+            },
+            "restaurantName": restaurant_name,
+            "restaurantId": restaurant_name.lower().replace(" ", "_"),
+            "supervisorRole": "manager",
+            "qrMode": qr_mode
+        }
+    else:
+        # Version 2 : seulement la section "menu"
+        backend = {
+            "menu": {
+                "menus": [],
+                "sections": [17, 18],
+                "drinks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+                "courses": {
+                    "choicesForCourse": {},
+                    "courseByGroup": {
+                        "5000000479": 20000066039
+                    },
+                    "courseLabels": {
+                        "1": {"fr": "Apéro", "en": "Apetizer", "class": "brown-courseId", "courseId": "1"},
+                        "2": {"fr": "Entrée", "en": "Starter", "class": "green-courseId", "courseId": "2"},
+                        "3": {"fr": "Plat", "en": "Main", "class": "blue-courseId", "courseId": "3"},
+                        "4": {"fr": "Dessert", "en": "Dessert", "class": "yellow-courseId", "courseId": "4"}
+                    },
+                    "courseOrder": ["1", "2", "3", "4"]
+                }
             }
-        },
-        "payment": {
-            "paymentId": "4",
-            "stripe_secret_key": "sk_test_...",
-            "lyfUrl": "https://sandbox-webpos.lyf.eu/fr/plugin/PaymentCb.aspx",
-            "lyfPosId": "",
-            "lyfPosKey": ""
-        },
-        "address": address,
-        "menu": {
-            "menus": [],
-            "sections": [17, 18],  # Sections nourriture
-            "drinks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],  # Toutes les catégories de boissons
-            "courses": {
-                "choicesForCourse": {},
-                "courseByGroup": {},
-                "courseLabels": {
-                    "1": {"fr": "Apéro", "en": "Apetizer", "class": "brown-courseId", "courseId": "1"},
-                    "2": {"fr": "Entrée", "en": "Starter", "class": "green-courseId", "courseId": "2"},
-                    "3": {"fr": "Plat", "en": "Main", "class": "blue-courseId", "courseId": "3"},
-                    "4": {"fr": "Dessert", "en": "Dessert", "class": "yellow-courseId", "courseId": "4"}
-                },
-                "courseOrder": ["1", "2", "3", "4"]
-            }
-        },
-        "restaurantName": restaurant_name,
-        "restaurantId": restaurant_name.lower().replace(" ", "_"),
-        "supervisorRole": "manager",
-        "qrMode": qr_mode
-    }
+        }
     
     return backend
 
@@ -496,9 +520,11 @@ async def generate_menu(
             "button_menu_block_font": color_button_menu_block_font
         }
         
-        backend_json = generate_backend_json(restaurant_name, qr_mode, address)
+    
+        # ✅ NOUVEAU - Générer backend AVANT menus
+        backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
+        backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
         menus_json = generate_menus_json(menu_data, backend_json["restaurantId"])
-        backend_2_json = backend_json.copy()
         frontend_json = generate_frontend_json(restaurant_name, colors, version=1)
         frontend_2_json = generate_frontend_json(restaurant_name, colors, version=2)
         menus_2_json = menus_json.copy()
@@ -646,11 +672,15 @@ async def test_network():
     except Exception as e:
         return {"status": f"❌ Erreur: {str(e)}"}
 
+@app.post("/upload-to-server")
 async def upload_to_server(
     restaurant_id: str = Form(...),
     backend_json: str = Form(...),
+    backend_2_json: str = Form(...),  # ← AJOUTER
     frontend_json: str = Form(...),
+    frontend_2_json: str = Form(...),  # ← AJOUTER
     menus_json: str = Form(...),
+    menus_2_json: str = Form(...),  # ← AJOUTER
     ftp_password: str = Form(...),
     home_banner: UploadFile = File(None),
     menu_banner: UploadFile = File(None)
@@ -689,9 +719,9 @@ async def upload_to_server(
         
         sftp = ssh.open_sftp()
         
-        CONFIG_PATH = f"/var/www/pleazze/data/config/{restaurant_id}"
-        CACHE_PATH = f"/var/www/pleazze/data/cache/{restaurant_id}/data_2025-07-29_17-25-11"
-        IMAGES_PATH = f"/var/www/pleazze/data/config/{restaurant_id}/old"
+        CONFIG_PATH = f"/var/www/pleazze/data/config/abdel"
+        CACHE_PATH = f"/var/www/pleazze/data/cache/abdel/data_2025-07-29_17-25-11"
+        IMAGES_PATH = f"/var/www/pleazze/data/config/abdel/old"
         
         # Créer les dossiers
         for path in [CONFIG_PATH, CACHE_PATH, IMAGES_PATH]:
@@ -712,22 +742,22 @@ async def upload_to_server(
         # Upload JSON dans /config/
         with sftp.file(f'{CONFIG_PATH}/backend.json', 'w') as f:
             f.write(backend_json)
-        
+
         with sftp.file(f'{CONFIG_PATH}/backend_2.json', 'w') as f:
-            f.write(backend_json)
-        
+            f.write(backend_2_json)  # ← Utiliser backend_2_json au lieu de backend_json
+
         with sftp.file(f'{CONFIG_PATH}/frontend.json', 'w') as f:
             f.write(frontend_json)
-        
+
         with sftp.file(f'{CONFIG_PATH}/frontend_2.json', 'w') as f:
-            f.write(frontend_json)
-        
+            f.write(frontend_2_json)  # ← Utiliser frontend_2_json au lieu de frontend_json
+
         # Upload JSON dans /cache/
         with sftp.file(f'{CACHE_PATH}/menus.4.json', 'w') as f:
             f.write(menus_json)
-        
+
         with sftp.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
-            f.write(menus_json)
+            f.write(menus_2_json)  # ← Utiliser menus_2_json au lieu de menus_json
         
         # Upload des images (converties en PNG)
         uploaded_images = []
