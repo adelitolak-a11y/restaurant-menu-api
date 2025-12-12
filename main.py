@@ -653,25 +653,24 @@ async def upload_to_server(
     frontend_json: str = Form(...),
     menus_json: str = Form(...),
     ftp_password: str = Form(...),
-    home_banner: UploadFile = File(None),  # ✅ NOUVEAU
-    menu_banner: UploadFile = File(None)   # ✅ NOUVEAU
+    home_banner: UploadFile = File(None),
+    menu_banner: UploadFile = File(None)
 ):
     """Upload les fichiers JSON + images sur le serveur via SFTP"""
     try:
         import paramiko
         
         SFTP_HOST = "178.32.198.72"
-        SFTP_PORT = 2266
         SFTP_USER = "snadmin"
-        CONFIG_PATH = f"/var/www/pleazze/data/config/{restaurant_id}"
-        CACHE_PATH = f"/var/www/pleazze/data/cache/{restaurant_id}/data_2025-07-29_17-25-11"
-        IMAGES_PATH = f"/var/www/pleazze/data/assets/img/banners"  # ✅ NOUVEAU
         
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(
+        # ============================================
+        # CONNEXION 1 : Port 2266 pour les JSON
+        # ============================================
+        ssh_json = paramiko.SSHClient()
+        ssh_json.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_json.connect(
             hostname=SFTP_HOST, 
-            port=SFTP_PORT, 
+            port=2266,  # ✅ Port 2266 pour les JSON
             username=SFTP_USER, 
             password=ftp_password, 
             timeout=30,
@@ -679,7 +678,10 @@ async def upload_to_server(
             allow_agent=False
         )
         
-        sftp = ssh.open_sftp()
+        sftp_json = ssh_json.open_sftp()
+        
+        CONFIG_PATH = f"/var/www/pleazze/data/config/{restaurant_id}"
+        CACHE_PATH = f"/var/www/pleazze/data/cache/{restaurant_id}/data_2025-07-29_17-25-11"
         
         # Créer les dossiers CONFIG
         try:
@@ -690,7 +692,7 @@ async def upload_to_server(
                     continue
                 current += '/' + part
                 try:
-                    sftp.mkdir(current)
+                    sftp_json.mkdir(current)
                 except:
                     pass
         except:
@@ -705,49 +707,89 @@ async def upload_to_server(
                     continue
                 current += '/' + part
                 try:
-                    sftp.mkdir(current)
+                    sftp_json.mkdir(current)
                 except:
                     pass
         except:
             pass
         
         # Upload JSON dans /config/
-        with sftp.file(f'{CONFIG_PATH}/backend.json', 'w') as f:
+        with sftp_json.file(f'{CONFIG_PATH}/backend.json', 'w') as f:
             f.write(backend_json)
         
-        with sftp.file(f'{CONFIG_PATH}/backend_2.json', 'w') as f:
+        with sftp_json.file(f'{CONFIG_PATH}/backend_2.json', 'w') as f:
             f.write(backend_json)
         
-        with sftp.file(f'{CONFIG_PATH}/frontend.json', 'w') as f:
+        with sftp_json.file(f'{CONFIG_PATH}/frontend.json', 'w') as f:
             f.write(frontend_json)
         
-        with sftp.file(f'{CONFIG_PATH}/frontend_2.json', 'w') as f:
+        with sftp_json.file(f'{CONFIG_PATH}/frontend_2.json', 'w') as f:
             f.write(frontend_json)
         
         # Upload JSON dans /cache/
-        with sftp.file(f'{CACHE_PATH}/menus.4.json', 'w') as f:
+        with sftp_json.file(f'{CACHE_PATH}/menus.4.json', 'w') as f:
             f.write(menus_json)
         
-        with sftp.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
+        with sftp_json.file(f'{CACHE_PATH}/menus_2.4.json', 'w') as f:
             f.write(menus_json)
         
-        # ✅ NOUVEAU : Upload des images
+        # Fermer la connexion JSON
+        sftp_json.close()
+        ssh_json.close()
+        
+        # ============================================
+        # CONNEXION 2 : Port 22 pour les IMAGES
+        # ============================================
         uploaded_images = []
         
-        if home_banner:
-            home_content = await home_banner.read()
-            with sftp.file(f'{IMAGES_PATH}/home-banner-pleazze-box.png', 'wb') as f:
-                f.write(home_content)
-            uploaded_images.append("home-banner-pleazze-box.png")
-        
-        if menu_banner:
-            menu_content = await menu_banner.read()
-            with sftp.file(f'{IMAGES_PATH}/menu-banner-pleazze-box.png', 'wb') as f:
-                f.write(menu_content)
-            uploaded_images.append("menu-banner-pleazze-box.png")
-        
-        sftp.close()
-        ssh.close()
+        if home_banner or menu_banner:
+            ssh_images = paramiko.SSHClient()
+            ssh_images.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh_images.connect(
+                hostname=SFTP_HOST, 
+                port=22,  # ✅ Port 22 pour les images
+                username=SFTP_USER, 
+                password=ftp_password, 
+                timeout=30,
+                look_for_keys=False,
+                allow_agent=False
+            )
+            
+            sftp_images = ssh_images.open_sftp()
+            
+            IMAGES_PATH = "/var/www/pleazze/static/adel"
+            
+            # Créer le dossier /static/adel s'il n'existe pas
+            try:
+                parts = IMAGES_PATH.split('/')
+                current = ''
+                for part in parts:
+                    if not part:
+                        continue
+                    current += '/' + part
+                    try:
+                        sftp_images.mkdir(current)
+                    except:
+                        pass
+            except:
+                pass
+            
+            # Upload des images
+            if home_banner:
+                home_content = await home_banner.read()
+                with sftp_images.file(f'{IMAGES_PATH}/home-banner-pleazze-box.png', 'wb') as f:
+                    f.write(home_content)
+                uploaded_images.append("home-banner-pleazze-box.png")
+            
+            if menu_banner:
+                menu_content = await menu_banner.read()
+                with sftp_images.file(f'{IMAGES_PATH}/menu-banner-pleazze-box.png', 'wb') as f:
+                    f.write(menu_content)
+                uploaded_images.append("menu-banner-pleazze-box.png")
+            
+            # Fermer la connexion images
+            sftp_images.close()
+            ssh_images.close()
         
         return {
             "success": True, 
