@@ -50,66 +50,142 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
 def classify_menu_with_groq(text: str) -> Dict:
     """Utilise Groq pour classifier le menu complet"""
     
-    prompt = f"""Tu es un expert en restauration. Analyse ce texte de menu et extrait TOUS les plats avec leurs prix.
+    prompt = f"""Tu es un expert en extraction de menus de restaurants. Tu dois analyser cette carte et extraire TOUS les articles avec une précision maximale.
 
-TEXTE DU MENU:
+TEXTE DE LA CARTE :
 {text}
 
-Réponds UNIQUEMENT avec un JSON dans ce format (sans texte avant ou après):
+CATÉGORIES À EXTRAIRE (toutes obligatoires) :
+
+**NOURRITURE :**
+- entrees : entrées/starters (MAIS PAS les salades)
+- salades : toutes les salades (Niçoise, Caesar, etc.)
+- plats : plats principaux/mains
+- desserts : desserts
+- planches : planches à partager (charcuterie, fromage, mixte)
+- tapas : tapas, petits plaisirs croustillants, snacking, amuse-bouches
+- pinsa_pizza : pinsa, pizza
+- pates : pâtes, pasta
+
+**BOISSONS NON-ALCOOLISÉES :**
+- boissons_soft : Coca, Perrier, Orangina, etc.
+- jus : jus de fruits, pressés
+- boissons_chaudes : café, thé, chocolat chaud
+
+**BOISSONS ALCOOLISÉES - BIÈRES :**
+- bieres_pression : bières pression (25cl, 50cl)
+- bieres_bouteilles : bières en bouteilles
+
+**BOISSONS ALCOOLISÉES - VINS :**
+- vins_blancs_verre : vins blancs au verre
+- vins_rouges_verre : vins rouges au verre
+- vins_roses_verre : vins rosés au verre
+- vins_blancs_bouteille : vins blancs en bouteille (75cl)
+- vins_rouges_bouteille : vins rouges en bouteille (75cl)
+- vins_roses_bouteille : vins rosés en bouteille (75cl)
+- vins_blancs_magnum : vins blancs magnum/jeroboam/mathusalem (150cl, 300cl, 600cl)
+- vins_rouges_magnum : vins rouges magnum/jeroboam/mathusalem (150cl, 300cl, 600cl)
+- vins_roses_magnum : vins rosés magnum/jeroboam/mathusalem (150cl, 300cl, 600cl)
+
+**BOISSONS ALCOOLISÉES - CHAMPAGNES :**
+- champagnes_coupe : champagnes au verre/coupe
+- champagnes_bouteille : champagnes en bouteille
+- champagnes_magnum : champagnes magnum et plus
+
+**BOISSONS ALCOOLISÉES - APÉRITIFS :**
+- aperitifs : Ricard, Pastis, Porto, Martini, Campari, Kir, etc.
+- spritz : tous les spritz
+
+**BOISSONS ALCOOLISÉES - COCKTAILS :**
+- cocktails : cocktails avec alcool
+- mocktails : cocktails sans alcool
+
+**BOISSONS ALCOOLISÉES - SPIRITUEUX :**
+- rhums : tous les rhums (format verre/bouteille/magnum dans le nom si applicable)
+- vodkas : toutes les vodkas (format verre/bouteille/magnum dans le nom si applicable)
+- gins : tous les gins (format verre/bouteille/magnum dans le nom si applicable)
+- tequilas : toutes les tequilas (format verre/bouteille/magnum dans le nom si applicable)
+- whiskies : tous les whiskies/whisky (format verre/bouteille/magnum dans le nom si applicable)
+- digestifs : liqueurs, digestifs divers, Limoncello, Get 27, etc.
+- cognacs_armagnacs : cognacs, armagnacs
+
+**IMPORTANT POUR LES TABLEAUX D'ALCOOLS :**
+Si tu vois un tableau comme :          Verre    Bouteille   Magnum
+JACK DANIEL'S  10€      130€        -
+GREY GOOSE     12.50€   150€       290€
+Crée 3 articles :
+- "JACK DANIEL'S Verre" (10€) dans whiskies
+- "JACK DANIEL'S Bouteille" (130€) dans whiskies
+- "GREY GOOSE Verre" (12.50€) dans vodkas
+- "GREY GOOSE Bouteille" (150€) dans vodkas
+- "GREY GOOSE Magnum" (290€) dans vodkas
+NE CRÉE PAS d'article pour les "-"
+
+RÈGLES STRICTES :
+1. Extrais TOUS les articles même s'ils semblent incomplets
+2. Si un prix contient une virgule (12,50), convertis-le en point (12.50)
+3. N'utilise JAMAIS de guillemets doubles " dans les noms (remplace par ')
+4. Pour les formats, note-les dans le nom : "Coca-Cola 33cl", "Bière pression 25cl"
+5. Si plusieurs formats existent (25cl/50cl), crée un article par format
+6. Pour les vins/champagnes, distingue verre/coupe/bouteille/magnum/jeroboam/mathusalem
+7. Si un article a des options (sirops, parfums), note-le dans la description
+8. **IMPORTANT : Si un alcool a plusieurs formats (verre/bouteille/magnum), crée UN ARTICLE PAR FORMAT avec le format dans le nom**
+   Exemple : "JACK DANIEL'S Verre" (10€), "JACK DANIEL'S Bouteille" (130€)
+9. **CRITIQUE : Les ROSÉS ne sont PAS des BLANCS ! Classe-les correctement dans vins_roses_**
+10. **CRITIQUE : Si un prix est marqué "-" ou absent, NE CRÉE PAS L'ARTICLE (ignore-le complètement)**
+11. **TABLES/TABLEAUX : Si tu vois un tableau avec colonnes Verre/Bouteille/Magnum, extrais CHAQUE COLONNE comme un article séparé**
+
+FORMAT DE RÉPONSE (JSON UNIQUEMENT, pas de texte avant/après) :
 {{
-  "entrees": [
-    {{"nom": "Soupe à l'oignon", "prix": 8.50, "description": "..."}}
-  ],
-  "plats": [
-    {{"nom": "Steak frites", "prix": 22.00, "description": "..."}}
-  ],
-  "desserts": [
-    {{"nom": "Tarte tatin", "prix": 7.50, "description": "..."}}
-  ],
-  "boissons_soft": [
-    {{"nom": "Coca-Cola", "prix": 4.50}}
-  ],
-  "boissons_alcoolisees": [
-    {{"nom": "Vin rouge (verre)", "prix": 6.00}}
-  ],
-  "cocktails": [
-    {{"nom": "Mojito", "prix": 12.00, "description": "..."}}
-  ],
-  "mocktails": [
-    {{"nom": "Virgin Mojito", "prix": 8.00, "description": "..."}}
-  ],
-  "bieres": [
-    {{"nom": "1664 - 25cl", "prix": 6.00}}
-  ],
-  "vins_blancs": [
-    {{"nom": "Chablis (verre)", "prix": 8.00}}
-  ],
-  "vins_rouges": [
-    {{"nom": "Bordeaux (verre)", "prix": 7.50}}
-  ],
-  "vins_roses": [
-    {{"nom": "Provence (verre)", "prix": 7.00}}
-  ],
-  "champagnes": [
-    {{"nom": "Champagne Brut (coupe)", "prix": 15.00}}
-  ],
-  "cafeterie": [
-    {{"nom": "Expresso", "prix": 3.50}}
-  ]
+  "entrees": [...],
+  "salades": [...],
+  "plats": [...],
+  "desserts": [...],
+  "planches": [...],
+  "tapas": [...],
+  "pinsa_pizza": [...],
+  "pates": [...],
+  "boissons_soft": [...],
+  "jus": [...],
+  "boissons_chaudes": [...],
+  "bieres_pression": [...],
+  "bieres_bouteilles": [...],
+  "vins_blancs_verre": [...],
+  "vins_rouges_verre": [...],
+  "vins_roses_verre": [...],
+  "vins_blancs_bouteille": [...],
+  "vins_rouges_bouteille": [...],
+  "vins_roses_bouteille": [...],
+  "vins_blancs_magnum": [...],
+  "vins_rouges_magnum": [...],
+  "vins_roses_magnum": [...],
+  "champagnes_coupe": [...],
+  "champagnes_bouteille": [...],
+  "champagnes_magnum": [...],
+  "aperitifs": [...],
+  "spritz": [...],
+  "cocktails": [...],
+  "mocktails": [...],
+  "rhums": [...],
+  "vodkas": [...],
+  "gins": [...],
+  "tequilas": [...],
+  "whiskies": [...],
+  "digestifs": [...],
+  "cognacs_armagnacs": [...]
 }}
 
-RÈGLES:
-- N'utilise JAMAIS de guillemets dans les noms de plats (remplace " par ')
-- Extrais TOUS les plats et boissons avec leurs prix
-- Si un prix a une virgule (12,50), convertis en point (12.50)
-- Retourne UNIQUEMENT le JSON, rien d'autre"""
+Chaque article doit avoir ce format exact :
+{{"nom": "...", "prix": 12.50, "description": "..." ou false}}
+
+IMPORTANT : Retourne UNIQUEMENT le JSON, rien d'autre !"""
 
     try:
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=10000
+            max_tokens=16000
         )
         
         response_text = response.choices[0].message.content.strip()
@@ -309,16 +385,51 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
     
     # Mapping des catégories
     category_mapping = {
-        "entrees": {"section": "sections", "name": {"fr": "ENTRÉES", "en": "STARTERS"}},
-        "plats": {"section": "sections", "name": {"fr": "PLATS", "en": "MAINS"}},
-        "desserts": {"section": "sections", "name": {"fr": "DESSERTS", "en": "DESSERTS"}},
-        "boissons_soft": {"section": "drinks", "name": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"}},
-        "boissons_alcoolisees": {"section": "drinks", "name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
-        "cocktails": {"section": "drinks", "name": {"fr": "COCKTAILS", "en": "COCKTAILS"}},
-        "mocktails": {"section": "drinks", "name": {"fr": "MOCKTAILS", "en": "MOCKTAILS"}},
-        "bieres": {"section": "drinks", "name": {"fr": "BIÈRES", "en": "BEERS"}},
-        # ... ajoute les autres catégories
-    }
+    "entrees": {"section": "sections", "name": {"fr": "ENTRÉES", "en": "STARTERS"}},
+    "salades": {"section": "sections", "name": {"fr": "SALADES", "en": "SALADS"}},
+    "plats": {"section": "sections", "name": {"fr": "PLATS", "en": "MAINS"}},
+    "desserts": {"section": "sections", "name": {"fr": "DESSERTS", "en": "DESSERTS"}},
+    "planches": {"section": "sections", "name": {"fr": "PLANCHES", "en": "BOARDS"}},
+    "tapas": {"section": "sections", "name": {"fr": "TAPAS", "en": "TAPAS"}},
+    "pinsa_pizza": {"section": "sections", "name": {"fr": "PINSA & PIZZA", "en": "PINSA & PIZZA"}},
+    "pates": {"section": "sections", "name": {"fr": "PÂTES", "en": "PASTA"}},
+    
+    "boissons_soft": {"section": "drinks", "name": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"}},
+    "jus": {"section": "drinks", "name": {"fr": "JUS", "en": "JUICES"}},
+    "boissons_chaudes": {"section": "drinks", "name": {"fr": "CAFÉTERIE", "en": "HOT DRINKS"}},
+    
+    "bieres_pression": {"section": "drinks", "name": {"fr": "BIÈRES PRESSION", "en": "DRAFT BEERS"}},
+    "bieres_bouteilles": {"section": "drinks", "name": {"fr": "BIÈRES BOUTEILLES", "en": "BOTTLED BEERS"}},
+    
+    "vins_blancs_verre": {"section": "drinks", "name": {"fr": "VINS BLANCS VERRE", "en": "WHITE WINES GLASS"}},
+    "vins_rouges_verre": {"section": "drinks", "name": {"fr": "VINS ROUGES VERRE", "en": "RED WINES GLASS"}},
+    "vins_roses_verre": {"section": "drinks", "name": {"fr": "VINS ROSÉS VERRE", "en": "ROSÉ WINES GLASS"}},
+    
+    "vins_blancs_bouteille": {"section": "drinks", "name": {"fr": "VINS BLANCS BOUTEILLE", "en": "WHITE WINES BOTTLE"}},
+    "vins_rouges_bouteille": {"section": "drinks", "name": {"fr": "VINS ROUGES BOUTEILLE", "en": "RED WINES BOTTLE"}},
+    "vins_roses_bouteille": {"section": "drinks", "name": {"fr": "VINS ROSÉS BOUTEILLE", "en": "ROSÉ WINES BOTTLE"}},
+    
+    "vins_blancs_magnum": {"section": "drinks", "name": {"fr": "VINS BLANCS MAGNUM", "en": "WHITE WINES MAGNUM"}},
+    "vins_rouges_magnum": {"section": "drinks", "name": {"fr": "VINS ROUGES MAGNUM", "en": "RED WINES MAGNUM"}},
+    "vins_roses_magnum": {"section": "drinks", "name": {"fr": "VINS ROSÉS MAGNUM", "en": "ROSÉ WINES MAGNUM"}},
+    
+    "champagnes_coupe": {"section": "drinks", "name": {"fr": "CHAMPAGNES COUPE", "en": "CHAMPAGNES GLASS"}},
+    "champagnes_bouteille": {"section": "drinks", "name": {"fr": "CHAMPAGNES BOUTEILLE", "en": "CHAMPAGNES BOTTLE"}},
+    "champagnes_magnum": {"section": "drinks", "name": {"fr": "CHAMPAGNES MAGNUM", "en": "CHAMPAGNES MAGNUM"}},
+    
+    "aperitifs": {"section": "drinks", "name": {"fr": "APÉRITIFS", "en": "APERITIFS"}},
+    "spritz": {"section": "drinks", "name": {"fr": "SPRITZ", "en": "SPRITZ"}},
+    "cocktails": {"section": "drinks", "name": {"fr": "COCKTAILS", "en": "COCKTAILS"}},
+    "mocktails": {"section": "drinks", "name": {"fr": "MOCKTAILS", "en": "MOCKTAILS"}},
+    
+    "rhums": {"section": "drinks", "name": {"fr": "RHUMS", "en": "RUMS"}},
+    "vodkas": {"section": "drinks", "name": {"fr": "VODKAS", "en": "VODKAS"}},
+    "gins": {"section": "drinks", "name": {"fr": "GINS", "en": "GINS"}},
+    "tequilas": {"section": "drinks", "name": {"fr": "TEQUILAS", "en": "TEQUILAS"}},
+    "whiskies": {"section": "drinks", "name": {"fr": "WHISKIES", "en": "WHISKIES"}},
+    "digestifs": {"section": "drinks", "name": {"fr": "DIGESTIFS", "en": "DIGESTIFS"}},
+    "cognacs_armagnacs": {"section": "drinks", "name": {"fr": "COGNACS & ARMAGNACS", "en": "COGNACS & ARMAGNACS"}}
+}
     
     current_id = 4000
     
