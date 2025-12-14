@@ -47,85 +47,153 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erreur lecture PDF: {str(e)}")
 
-def classify_menu_with_groq(text: str) -> Dict:
-    """Utilise Groq pour classifier le menu complet"""
+def create_extraction_prompt(text: str) -> str:
+    """Crée un prompt ultra-détaillé pour extraire TOUTES les catégories"""
     
-    prompt = f"""Tu es un expert en restauration. Analyse ce texte de menu et extrait TOUS les plats avec leurs prix.
+    return f"""Tu es un expert en extraction de menus de restaurants. Tu dois analyser cette carte et extraire TOUS les articles avec une précision maximale.
 
-TEXTE DU MENU:
+TEXTE DE LA CARTE :
 {text}
 
-Réponds UNIQUEMENT avec un JSON dans ce format (sans texte avant ou après):
+CATÉGORIES À EXTRAIRE (toutes obligatoires) :
+
+**NOURRITURE :**
+- entrees : entrées/starters (MAIS PAS les salades)
+- salades : toutes les salades (Niçoise, Caesar, etc.)
+- plats : plats principaux/mains
+- desserts : desserts
+- planches : planches à partager (charcuterie, fromage, mixte)
+- tapas : tapas, petits plaisirs croustillants, snacking, amuse-bouches
+- pinsa_pizza : pinsa, pizza
+- pates : pâtes, pasta
+
+**BOISSONS NON-ALCOOLISÉES :**
+- boissons_soft : Coca, Perrier, Orangina, etc.
+- jus : jus de fruits, pressés
+- boissons_chaudes : café, thé, chocolat chaud
+
+**BOISSONS ALCOOLISÉES - BIÈRES :**
+- bieres_pression : bières pression (25cl, 50cl)
+- bieres_bouteilles : bières en bouteilles
+
+**BOISSONS ALCOOLISÉES - VINS :**
+- vins_blancs_verre : vins blancs au verre
+- vins_rouges_verre : vins rouges au verre
+- vins_roses_verre : vins rosés au verre
+- vins_blancs_bouteille : vins blancs en bouteille (75cl)
+- vins_rouges_bouteille : vins rouges en bouteille (75cl)
+- vins_roses_bouteille : vins rosés en bouteille (75cl)
+- vins_blancs_magnum : vins blancs magnum/jeroboam/mathusalem (150cl, 300cl, 600cl)
+- vins_rouges_magnum : vins rouges magnum/jeroboam/mathusalem (150cl, 300cl, 600cl)
+- vins_roses_magnum : vins rosés magnum/jeroboam/mathusalem (150cl, 300cl, 600cl)
+
+**BOISSONS ALCOOLISÉES - CHAMPAGNES :**
+- champagnes_coupe : champagnes au verre/coupe
+- champagnes_bouteille : champagnes en bouteille
+- champagnes_magnum : champagnes magnum et plus
+
+**BOISSONS ALCOOLISÉES - APÉRITIFS :**
+- aperitifs : Ricard, Pastis, Porto, Martini, Campari, Kir, etc.
+- spritz : tous les spritz
+
+**BOISSONS ALCOOLISÉES - COCKTAILS :**
+- cocktails : cocktails avec alcool
+- mocktails : cocktails sans alcool
+
+**BOISSONS ALCOOLISÉES - SPIRITUEUX :**
+- rhums : tous les rhums
+- vodkas : toutes les vodkas
+- gins : tous les gins
+- tequilas : toutes les tequilas
+- whiskies : tous les whiskies/whisky
+- digestifs : liqueurs, digestifs divers, Limoncello, Get 27, etc.
+- cognacs_armagnacs : cognacs, armagnacs
+
+RÈGLES STRICTES :
+1. Extrais TOUS les articles même s'ils semblent incomplets
+2. Si un prix contient une virgule (12,50), convertis-le en point (12.50)
+3. N'utilise JAMAIS de guillemets doubles " dans les noms (remplace par ')
+4. Pour les formats, note-les dans le nom : "Coca-Cola 33cl", "Bière pression 25cl"
+5. Si plusieurs formats existent (25cl/50cl), crée un article par format
+6. Pour les vins/champagnes, distingue verre/coupe/bouteille/magnum
+7. Si un article a des options (sirops, parfums), note-le dans la description
+8. Les ROSÉS ne sont PAS des BLANCS ! Classe-les correctement
+9. Si un prix est marqué "-" ou absent, NE CRÉE PAS L'ARTICLE
+
+FORMAT DE RÉPONSE (JSON UNIQUEMENT) :
 {{
-  "entrees": [
-    {{"nom": "Soupe à l'oignon", "prix": 8.50, "description": "..."}}
-  ],
-  "plats": [
-    {{"nom": "Steak frites", "prix": 22.00, "description": "..."}}
-  ],
-  "desserts": [
-    {{"nom": "Tarte tatin", "prix": 7.50, "description": "..."}}
-  ],
-  "boissons_soft": [
-    {{"nom": "Coca-Cola", "prix": 4.50}}
-  ],
-  "boissons_alcoolisees": [
-    {{"nom": "Vin rouge (verre)", "prix": 6.00}}
-  ],
-  "cocktails": [
-    {{"nom": "Mojito", "prix": 12.00, "description": "..."}}
-  ],
-  "mocktails": [
-    {{"nom": "Virgin Mojito", "prix": 8.00, "description": "..."}}
-  ],
-  "bieres": [
-    {{"nom": "1664 - 25cl", "prix": 6.00}}
-  ],
-  "vins_blancs": [
-    {{"nom": "Chablis (verre)", "prix": 8.00}}
-  ],
-  "vins_rouges": [
-    {{"nom": "Bordeaux (verre)", "prix": 7.50}}
-  ],
-  "vins_roses": [
-    {{"nom": "Provence (verre)", "prix": 7.00}}
-  ],
-  "champagnes": [
-    {{"nom": "Champagne Brut (coupe)", "prix": 15.00}}
-  ],
-  "cafeterie": [
-    {{"nom": "Expresso", "prix": 3.50}}
-  ]
+  "entrees": [...],
+  "salades": [...],
+  "plats": [...],
+  "desserts": [...],
+  "planches": [...],
+  "tapas": [...],
+  "pinsa_pizza": [...],
+  "pates": [...],
+  "boissons_soft": [...],
+  "jus": [...],
+  "boissons_chaudes": [...],
+  "bieres_pression": [...],
+  "bieres_bouteilles": [...],
+  "vins_blancs_verre": [...],
+  "vins_rouges_verre": [...],
+  "vins_roses_verre": [...],
+  "vins_blancs_bouteille": [...],
+  "vins_rouges_bouteille": [...],
+  "vins_roses_bouteille": [...],
+  "vins_blancs_magnum": [...],
+  "vins_rouges_magnum": [...],
+  "vins_roses_magnum": [...],
+  "champagnes_coupe": [...],
+  "champagnes_bouteille": [...],
+  "champagnes_magnum": [...],
+  "aperitifs": [...],
+  "spritz": [...],
+  "cocktails": [...],
+  "mocktails": [...],
+  "rhums": [...],
+  "vodkas": [...],
+  "gins": [...],
+  "tequilas": [...],
+  "whiskies": [...],
+  "digestifs": [...],
+  "cognacs_armagnacs": [...]
 }}
 
-RÈGLES:
-- N'utilise JAMAIS de guillemets dans les noms de plats (remplace " par ')
-- Extrais TOUS les plats et boissons avec leurs prix
-- Si un prix a une virgule (12,50), convertis en point (12.50)
-- Retourne UNIQUEMENT le JSON, rien d'autre"""
+IMPORTANT : Retourne UNIQUEMENT le JSON, rien d'autre !"""
 
+
+def extract_menu_with_groq(text: str) -> dict:
+    """Appelle Groq pour extraire le menu"""
+    
+    prompt = create_extraction_prompt(text)
+    
     try:
+        print("🔄 Appel à Groq en cours...")
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=10000
+            max_tokens=16000
         )
         
         response_text = response.choices[0].message.content.strip()
         
+        # Nettoyer les markdown fences
         if "```json" in response_text:
             response_text = response_text.split("```json")[1].split("```")[0]
         elif "```" in response_text:
             response_text = response_text.split("```")[1].split("```")[0]
         
         menu_json = json.loads(response_text)
+        print("✅ Extraction réussie !")
         return menu_json
         
     except json.JSONDecodeError as e:
-        print(f"⚠️  JSON invalide reçu de Groq")
+        print(f"❌ Erreur parsing JSON : {e}")
         raise HTTPException(status_code=500, detail=f"Erreur parsing JSON: {str(e)}")
     except Exception as e:
+        print(f"❌ Erreur Groq : {e}")
         raise HTTPException(status_code=500, detail=f"Erreur Groq API: {str(e)}")
 
 def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odoo_config: Dict = None, version: int = 1) -> Dict:
@@ -294,71 +362,131 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
         }
 
 def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
-    """Génère le fichier menus.4.json au format Odoo"""
+    """Génère le fichier menus.4.json au format exact de ton exemple"""
     
     menus_json = {
         "menus": [],
-        "sections": [
-            {
-                "name": {"fr": "NOURRITURE", "en": "FOOD"},
-                "articles": []
-            }
-        ],
+        "sections": [],
         "drinks": []
     }
     
-    # Mapping des catégories
-    category_mapping = {
-        "entrees": {"section": "sections", "name": {"fr": "ENTRÉES", "en": "STARTERS"}},
-        "plats": {"section": "sections", "name": {"fr": "PLATS", "en": "MAINS"}},
-        "desserts": {"section": "sections", "name": {"fr": "DESSERTS", "en": "DESSERTS"}},
-        "boissons_soft": {"section": "drinks", "name": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"}},
-        "boissons_alcoolisees": {"section": "drinks", "name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
-        "cocktails": {"section": "drinks", "name": {"fr": "COCKTAILS", "en": "COCKTAILS"}},
-        "mocktails": {"section": "drinks", "name": {"fr": "MOCKTAILS", "en": "MOCKTAILS"}},
-        "bieres": {"section": "drinks", "name": {"fr": "BIÈRES", "en": "BEERS"}},
-        # ... ajoute les autres catégories
+    # Mapping des catégories NOURRITURE vers sections
+    food_categories = {
+        "planches": {"name": {"fr": "SNACKING", "en": "SNACKING"}},
+        "tapas": {"name": {"fr": "SNACKING", "en": "SNACKING"}},
+        "entrees": {"name": {"fr": "ENTRÉES", "en": "STARTERS"}},
+        "salades": {"name": {"fr": "SALADES", "en": "SALADS"}},
+        "plats": {"name": {"fr": "PLATS", "en": "MAINS"}},
+        "desserts": {"name": {"fr": "DESSERTS", "en": "DESSERTS"}},
+        "pinsa_pizza": {"name": {"fr": "PINSA & PIZZA", "en": "PINSA & PIZZA"}},
+        "pates": {"name": {"fr": "PÂTES", "en": "PASTA"}}
     }
     
-    current_id = 4000
+    # Mapping des catégories BOISSONS vers drinks
+    drink_categories = {
+        "cocktails": {"name": {"fr": "COCKTAILS", "en": "COCKTAILS"}},
+        "mocktails": {"name": {"fr": "MOCKTAILS", "en": "MOCKTAILS"}},
+        "aperitifs": {"name": {"fr": "APÉRITIFS", "en": "APERITIFS"}},
+        "spritz": {"name": {"fr": "SPRITZ", "en": "SPRITZ"}},
+        "bieres_pression": {"name": {"fr": "BIÈRES", "en": "BEERS"}, "subsection": "Pression"},
+        "bieres_bouteilles": {"name": {"fr": "BIÈRES", "en": "BEERS"}, "subsection": "Bouteilles"},
+        "boissons_soft": {"name": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"}},
+        "jus": {"name": {"fr": "JUS", "en": "JUICES"}},
+        "boissons_chaudes": {"name": {"fr": "CAFÉTERIE", "en": "CAFE"}},
+        "vins_blancs_verre": {"name": {"fr": "VINS VERRE BLANCS", "en": "WHITE WINES GLASS"}},
+        "vins_rouges_verre": {"name": {"fr": "VINS VERRE ROUGES", "en": "RED WINES GLASS"}},
+        "vins_roses_verre": {"name": {"fr": "VINS VERRE ROSÉS", "en": "ROSÉ WINES GLASS"}},
+        "vins_blancs_bouteille": {"name": {"fr": "BT VINS BLANCS", "en": "WHITE WINES BOTTLE"}},
+        "vins_rouges_bouteille": {"name": {"fr": "BT VINS ROUGES", "en": "RED WINES BOTTLE"}},
+        "vins_roses_bouteille": {"name": {"fr": "BT VINS ROSÉS", "en": "ROSÉ WINES BOTTLE"}},
+        "champagnes_coupe": {"name": {"fr": "CHAMPAGNES BLANCS", "en": "CHAMPAGNES WHITE"}},
+        "champagnes_bouteille": {"name": {"fr": "CHAMPAGNES BLANCS", "en": "CHAMPAGNES WHITE"}},
+        "champagnes_magnum": {"name": {"fr": "CHAMPAGNES ROSÉ", "en": "CHAMPAGNES ROSÉ"}},
+        "rhums": {"name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
+        "vodkas": {"name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
+        "gins": {"name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
+        "tequilas": {"name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
+        "whiskies": {"name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
+        "digestifs": {"name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
+        "cognacs_armagnacs": {"name": {"fr": "ALCOOLS", "en": "SPIRITS"}}
+    }
     
-    for category, items in menu_data.items():
-        if category not in category_mapping:
-            continue
-            
-        cat_info = category_mapping[category]
-        section_type = cat_info["section"]
-        
-        # Créer une section pour cette catégorie
-        category_section = {
-            "name": cat_info["name"],
-            "articles": []
+    current_id = 3000
+    
+    # Fonction helper pour créer un article
+    def create_article(item, article_id):
+        return {
+            "name": {"fr": item["nom"], "en": item["nom"]},
+            "articleId": str(article_id),
+            "posName": item["nom"],
+            "price": {"priceId": "", "amount": float(item["prix"])},
+            "img": "",
+            "descr": {"fr": item.get("description", False), "en": item.get("description", False)},
+            "allergens": {"fr": "", "en": ""},
+            "additional": {"fr": "", "en": ""},
+            "wine_pairing": {"fr": "", "en": ""},
+            "options": [],
+            "defaultCourseId": 1,
+            "choicesForCourse": []
         }
-        
-        for item in items:
-            article = {
-                "name": {"fr": item["nom"], "en": item["nom"]},
-                "articleId": str(current_id),
-                "posName": item["nom"],
-                "price": {"priceId": "", "amount": float(item["prix"])},
-                "img": "",
-                "descr": {"fr": item.get("description", ""), "en": item.get("description", "")},
-                "allergens": {"fr": "", "en": ""},
-                "additional": {"fr": "", "en": ""},
-                "wine_pairing": {"fr": "", "en": ""},
-                "options": [],
-                "defaultCourseId": 1,
-                "choicesForCourse": []
+    
+    # Traiter les catégories NOURRITURE
+    for category, items in menu_data.items():
+        if category in food_categories and items:
+            section = {
+                "name": food_categories[category]["name"],
+                "articles": []
             }
             
-            category_section["articles"].append(article)
-            current_id += 1
-        
-        # Ajouter la section au bon endroit
-        if section_type == "sections":
-            menus_json["sections"].append(category_section)
+            for item in items:
+                section["articles"].append(create_article(item, current_id))
+                current_id += 1
+            
+            menus_json["sections"].append(section)
+    
+    # Traiter les catégories BOISSONS avec regroupement
+    drink_sections = {}
+    
+    for category, items in menu_data.items():
+        if category in drink_categories and items:
+            cat_info = drink_categories[category]
+            section_name = cat_info["name"]["fr"]
+            
+            # Initialiser la section si elle n'existe pas
+            if section_name not in drink_sections:
+                drink_sections[section_name] = {
+                    "name": cat_info["name"],
+                    "articles": [],
+                    "sections": []  # Pour les sous-sections (bières)
+                }
+            
+            # Gérer les sous-sections (ex: Bières Pression / Bouteilles)
+            if "subsection" in cat_info:
+                subsection = {
+                    "name": {"fr": cat_info["subsection"], "en": cat_info["subsection"]},
+                    "articles": []
+                }
+                for item in items:
+                    subsection["articles"].append(create_article(item, current_id))
+                    current_id += 1
+                drink_sections[section_name]["sections"].append(subsection)
+            else:
+                # Ajouter directement aux articles de la section
+                for item in items:
+                    drink_sections[section_name]["articles"].append(create_article(item, current_id))
+                    current_id += 1
+    
+    # Convertir drink_sections en liste
+    for section_data in drink_sections.values():
+        if section_data["sections"]:
+            # Si on a des sous-sections, ne pas inclure "articles" vide
+            if not section_data["articles"]:
+                del section_data["articles"]
         else:
-            menus_json["drinks"].append(category_section)
+            # Pas de sous-sections, supprimer la clé "sections" vide
+            del section_data["sections"]
+        
+        menus_json["drinks"].append(section_data)
     
     return menus_json
 
@@ -414,7 +542,7 @@ async def extract_menu(
             if not text.strip():
                 raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
             
-            menu_data = classify_menu_with_groq(text)
+            menu_data = extract_menu_with_groq(text)
             print(f"✅ Menu extrait du PDF avec {sum(len(v) for v in menu_data.values())} articles")
         
         else:
@@ -445,7 +573,7 @@ async def extract_menu(
             },
             "stats": {
                 "total_articles": sum(len(v) for v in menu_data.values()),
-                "par_categorie": {k: len(v) for k, v in menu_data.items()}
+                "par_categorie": {k: len(v) for k, v in menu_data.items() if v}
             }
         }
         
@@ -500,7 +628,7 @@ async def generate_menu(
             if not text.strip():
                 raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
             
-            menu_data = classify_menu_with_groq(text)
+            menu_data = extract_menu_with_groq(text)
             print(f"✅ Menu extrait du PDF avec {sum(len(v) for v in menu_data.values())} articles")
         
         else:
