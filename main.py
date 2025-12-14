@@ -47,163 +47,85 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erreur lecture PDF: {str(e)}")
 
-def create_extraction_prompt(text: str) -> str:
-    """✅ Prompt simplifié et efficace"""
+def classify_menu_with_groq(text: str) -> Dict:
+    """Utilise Groq pour classifier le menu complet"""
     
-    return f"""Analyse ce menu de restaurant et extrait TOUS les articles avec leurs prix.
+    prompt = f"""Tu es un expert en restauration. Analyse ce texte de menu et extrait TOUS les plats avec leurs prix.
 
-TEXTE DU MENU :
+TEXTE DU MENU:
 {text}
 
-CATÉGORIES À EXTRAIRE (laisse vides celles qui n'existent pas) :
-
-NOURRITURE : entrees, salades, plats, desserts, planches, tapas, pinsa_pizza, pates
-
-BOISSONS SOFT : boissons_soft, jus, boissons_chaudes
-
-BIÈRES : bieres_pression, bieres_bouteilles
-
-VINS AU VERRE : vins_blancs_verre, vins_rouges_verre, vins_roses_verre
-
-VINS EN BOUTEILLE (75cl) : vins_blancs_bouteille, vins_rouges_bouteille, vins_roses_bouteille
-
-VINS MAGNUM (150cl+) : vins_blancs_magnum, vins_rouges_magnum, vins_roses_magnum
-
-CHAMPAGNES : champagnes_coupe, champagnes_bouteille, champagnes_magnum
-
-SPIRITUEUX : aperitifs, spritz, cocktails, mocktails, rhums, vodkas, gins, tequilas, whiskies, digestifs, cognacs_armagnacs
-
-RÈGLES :
-1. Chaque article doit avoir : "nom", "prix" (nombre), "description" (texte ou false)
-2. Ne crée PAS d'article si le prix est absent ou marqué "-"
-3. Convertis les virgules en points (12,50 → 12.50)
-4. N'utilise JAMAIS de guillemets doubles " dans les noms
-5. Pour les formats, inclus-les dans le nom : "Bière pression 25cl"
-
-FORMAT DE RÉPONSE (JSON UNIQUEMENT, rien avant ou après) :
-
+Réponds UNIQUEMENT avec un JSON dans ce format (sans texte avant ou après):
 {{
-  "entrees": [{{"nom": "Soupe à l'oignon", "prix": 8.50, "description": false}}],
-  "salades": [],
-  "plats": [{{"nom": "Steak frites", "prix": 22.00, "description": "Viande française"}}],
-  "desserts": [],
-  "planches": [],
-  "tapas": [],
-  "pinsa_pizza": [],
-  "pates": [],
-  "boissons_soft": [],
-  "jus": [],
-  "boissons_chaudes": [],
-  "bieres_pression": [],
-  "bieres_bouteilles": [],
-  "vins_blancs_verre": [],
-  "vins_rouges_verre": [],
-  "vins_roses_verre": [],
-  "vins_blancs_bouteille": [],
-  "vins_rouges_bouteille": [],
-  "vins_roses_bouteille": [],
-  "vins_blancs_magnum": [],
-  "vins_rouges_magnum": [],
-  "vins_roses_magnum": [],
-  "champagnes_coupe": [],
-  "champagnes_bouteille": [],
-  "champagnes_magnum": [],
-  "aperitifs": [],
-  "spritz": [],
-  "cocktails": [],
-  "mocktails": [],
-  "rhums": [],
-  "vodkas": [],
-  "gins": [],
-  "tequilas": [],
-  "whiskies": [],
-  "digestifs": [],
-  "cognacs_armagnacs": []
-}}"""
+  "entrees": [
+    {{"nom": "Soupe à l'oignon", "prix": 8.50, "description": "..."}}
+  ],
+  "plats": [
+    {{"nom": "Steak frites", "prix": 22.00, "description": "..."}}
+  ],
+  "desserts": [
+    {{"nom": "Tarte tatin", "prix": 7.50, "description": "..."}}
+  ],
+  "boissons_soft": [
+    {{"nom": "Coca-Cola", "prix": 4.50}}
+  ],
+  "boissons_alcoolisees": [
+    {{"nom": "Vin rouge (verre)", "prix": 6.00}}
+  ],
+  "cocktails": [
+    {{"nom": "Mojito", "prix": 12.00, "description": "..."}}
+  ],
+  "mocktails": [
+    {{"nom": "Virgin Mojito", "prix": 8.00, "description": "..."}}
+  ],
+  "bieres": [
+    {{"nom": "1664 - 25cl", "prix": 6.00}}
+  ],
+  "vins_blancs": [
+    {{"nom": "Chablis (verre)", "prix": 8.00}}
+  ],
+  "vins_rouges": [
+    {{"nom": "Bordeaux (verre)", "prix": 7.50}}
+  ],
+  "vins_roses": [
+    {{"nom": "Provence (verre)", "prix": 7.00}}
+  ],
+  "champagnes": [
+    {{"nom": "Champagne Brut (coupe)", "prix": 15.00}}
+  ],
+  "cafeterie": [
+    {{"nom": "Expresso", "prix": 3.50}}
+  ]
+}}
 
+RÈGLES:
+- N'utilise JAMAIS de guillemets dans les noms de plats (remplace " par ')
+- Extrais TOUS les plats et boissons avec leurs prix
+- Si un prix a une virgule (12,50), convertis en point (12.50)
+- Retourne UNIQUEMENT le JSON, rien d'autre"""
 
-def extract_menu_with_groq(text: str) -> dict:
-    """✅ Extraction avec validation souple"""
-    
-    prompt = create_extraction_prompt(text)
-    
     try:
-        print("🔄 Appel à Groq...")
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=16000
+            max_tokens=10000
         )
         
         response_text = response.choices[0].message.content.strip()
         
-        # Nettoyer markdown
         if "```json" in response_text:
             response_text = response_text.split("```json")[1].split("```")[0]
         elif "```" in response_text:
             response_text = response_text.split("```")[1].split("```")[0]
         
         menu_json = json.loads(response_text)
-        
-        # ✅ VALIDATION SOUPLE
-        validated_menu = {}
-        total_items = 0
-        
-        for category, items in menu_json.items():
-            validated_items = []
-            
-            if not isinstance(items, list):
-                validated_menu[category] = []
-                continue
-            
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                
-                # Accepter 'nom' ou 'name'
-                nom = item.get('nom') or item.get('name')
-                if not nom:
-                    continue
-                
-                # Accepter 'prix' ou 'price', avec conversion souple
-                prix = item.get('prix') or item.get('price')
-                if prix is None:
-                    continue
-                
-                try:
-                    prix = float(str(prix).replace(',', '.'))
-                except (ValueError, TypeError):
-                    print(f"⚠️ Prix invalide ignoré pour {nom}")
-                    continue
-                
-                # Description
-                desc = item.get('description') or item.get('desc')
-                
-                validated_items.append({
-                    'nom': str(nom),
-                    'prix': prix,
-                    'description': str(desc) if desc and str(desc).lower() != 'false' else False
-                })
-            
-            validated_menu[category] = validated_items
-            total_items += len(validated_items)
-        
-        print(f"✅ Extraction réussie : {total_items} articles validés")
-        
-        # Debug par catégorie
-        for cat, items in validated_menu.items():
-            if items:
-                print(f"  {cat}: {len(items)} items")
-        
-        return validated_menu
+        return menu_json
         
     except json.JSONDecodeError as e:
-        print(f"❌ JSON invalide : {e}")
-        print(f"Réponse brute: {response_text[:500]}")
+        print(f"⚠️  JSON invalide reçu de Groq")
         raise HTTPException(status_code=500, detail=f"Erreur parsing JSON: {str(e)}")
     except Exception as e:
-        print(f"❌ Erreur Groq : {e}")
         raise HTTPException(status_code=500, detail=f"Erreur Groq API: {str(e)}")
 
 def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odoo_config: Dict = None, version: int = 1) -> Dict:
@@ -372,182 +294,71 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
         }
 
 def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
-    """✅ Génère menus.json avec TOUTES les catégories"""
+    """Génère le fichier menus.4.json au format Odoo"""
     
-    menus_json = {"menus": [], "sections": [], "drinks": []}
-    
-    # Mapping NOURRITURE
-    food_categories = {
-        "entrees": {"fr": "ENTRÉES", "en": "STARTERS"},
-        "salades": {"fr": "SALADES", "en": "SALADS"},
-        "plats": {"fr": "PLATS", "en": "MAINS"},
-        "desserts": {"fr": "DESSERTS", "en": "DESSERTS"},
-        "planches": {"fr": "PLANCHES", "en": "SHARING BOARDS"},
-        "tapas": {"fr": "TAPAS", "en": "TAPAS"},
-        "pinsa_pizza": {"fr": "PINSA & PIZZA", "en": "PINSA & PIZZA"},
-        "pates": {"fr": "PÂTES", "en": "PASTA"}
-    }
-    
-    # Mapping BOISSONS
-    drink_categories = {
-        "boissons_soft": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"},
-        "jus": {"fr": "JUS", "en": "JUICES"},
-        "boissons_chaudes": {"fr": "CAFÉTERIE", "en": "CAFE"},
-        "bieres_pression": {"fr": "BIÈRES PRESSION", "en": "DRAFT BEERS"},
-        "bieres_bouteilles": {"fr": "BIÈRES BOUTEILLES", "en": "BOTTLED BEERS"},
-        "vins_blancs_verre": {"fr": "VINS BLANCS (VERRE)", "en": "WHITE WINES (GLASS)"},
-        "vins_rouges_verre": {"fr": "VINS ROUGES (VERRE)", "en": "RED WINES (GLASS)"},
-        "vins_roses_verre": {"fr": "VINS ROSÉS (VERRE)", "en": "ROSÉ WINES (GLASS)"},
-        "vins_blancs_bouteille": {"fr": "VINS BLANCS (BOUTEILLE)", "en": "WHITE WINES (BOTTLE)"},
-        "vins_rouges_bouteille": {"fr": "VINS ROUGES (BOUTEILLE)", "en": "RED WINES (BOTTLE)"},
-        "vins_roses_bouteille": {"fr": "VINS ROSÉS (BOUTEILLE)", "en": "ROSÉ WINES (BOTTLE)"},
-        "vins_blancs_magnum": {"fr": "VINS BLANCS (MAGNUM)", "en": "WHITE WINES (MAGNUM)"},
-        "vins_rouges_magnum": {"fr": "VINS ROUGES (MAGNUM)", "en": "RED WINES (MAGNUM)"},
-        "vins_roses_magnum": {"fr": "VINS ROSÉS (MAGNUM)", "en": "ROSÉ WINES (MAGNUM)"},
-        "champagnes_coupe": {"fr": "CHAMPAGNES (COUPE)", "en": "CHAMPAGNES (GLASS)"},
-        "champagnes_bouteille": {"fr": "CHAMPAGNES (BOUTEILLE)", "en": "CHAMPAGNES (BOTTLE)"},
-        "champagnes_magnum": {"fr": "CHAMPAGNES (MAGNUM)", "en": "CHAMPAGNES (MAGNUM)"},
-        "aperitifs": {"fr": "APÉRITIFS", "en": "APERITIFS"},
-        "spritz": {"fr": "SPRITZ", "en": "SPRITZ"},
-        "cocktails": {"fr": "COCKTAILS", "en": "COCKTAILS"},
-        "mocktails": {"fr": "MOCKTAILS", "en": "MOCKTAILS"},
-        "rhums": {"fr": "RHUMS", "en": "RUMS"},
-        "vodkas": {"fr": "VODKAS", "en": "VODKAS"},
-        "gins": {"fr": "GINS", "en": "GINS"},
-        "tequilas": {"fr": "TEQUILAS", "en": "TEQUILAS"},
-        "whiskies": {"fr": "WHISKIES", "en": "WHISKIES"},
-        "digestifs": {"fr": "DIGESTIFS", "en": "DIGESTIFS"},
-        "cognacs_armagnacs": {"fr": "COGNACS & ARMAGNACS", "en": "COGNACS & ARMAGNACS"}
-    }
-    
-    current_id = 3000
-    
-    def create_article(item, article_id):
-        return {
-            "name": {"fr": item["nom"], "en": item["nom"]},
-            "articleId": str(article_id),
-            "posName": item["nom"],
-            "price": {"priceId": "", "amount": float(item["prix"])},
-            "img": "",
-            "descr": {"fr": item.get("description", False), "en": item.get("description", False)},
-            "allergens": {"fr": "", "en": ""},
-            "additional": {"fr": "", "en": ""},
-            "wine_pairing": {"fr": "", "en": ""},
-            "options": [],
-            "defaultCourseId": 1,
-            "choicesForCourse": []
-        }
-    
-    # Traiter SECTIONS (nourriture)
-    for category_key, category_label in food_categories.items():
-        items = menu_data.get(category_key, [])
-        if not items:
-            continue
-        
-        section = {
-            "name": {"fr": category_label["fr"], "en": category_label["en"]},
-            "articles": []
-        }
-        
-        for item in items:
-            section["articles"].append(create_article(item, current_id))
-            current_id += 1
-        
-        menus_json["sections"].append(section)
-    
-    # Traiter DRINKS
-    for category_key, category_label in drink_categories.items():
-        items = menu_data.get(category_key, [])
-        if not items:
-            continue
-        
-        drink_section = {
-            "name": {"fr": category_label["fr"], "en": category_label["en"]},
-            "articles": []
-        }
-        
-        for item in items:
-            drink_section["articles"].append(create_article(item, current_id))
-            current_id += 1
-        
-        menus_json["drinks"].append(drink_section)
-    
-    return menus_json
-    
-    # Fonction helper pour créer un article
-    def create_article(item, article_id):
-        return {
-            "name": {"fr": item["nom"], "en": item["nom"]},
-            "articleId": str(article_id),
-            "posName": item["nom"],
-            "price": {"priceId": "", "amount": float(item["prix"])},
-            "img": "",
-            "descr": {"fr": item.get("description", False), "en": item.get("description", False)},
-            "allergens": {"fr": "", "en": ""},
-            "additional": {"fr": "", "en": ""},
-            "wine_pairing": {"fr": "", "en": ""},
-            "options": [],
-            "defaultCourseId": 1,
-            "choicesForCourse": []
-        }
-    
-    # Traiter les catégories NOURRITURE
-    for category, items in menu_data.items():
-        if category in food_categories and items:
-            section = {
-                "name": food_categories[category]["name"],
+    menus_json = {
+        "menus": [],
+        "sections": [
+            {
+                "name": {"fr": "NOURRITURE", "en": "FOOD"},
                 "articles": []
             }
-            
-            for item in items:
-                section["articles"].append(create_article(item, current_id))
-                current_id += 1
-            
-            menus_json["sections"].append(section)
+        ],
+        "drinks": []
+    }
     
-    # Traiter les catégories BOISSONS avec regroupement
-    drink_sections = {}
+    # Mapping des catégories
+    category_mapping = {
+        "entrees": {"section": "sections", "name": {"fr": "ENTRÉES", "en": "STARTERS"}},
+        "plats": {"section": "sections", "name": {"fr": "PLATS", "en": "MAINS"}},
+        "desserts": {"section": "sections", "name": {"fr": "DESSERTS", "en": "DESSERTS"}},
+        "boissons_soft": {"section": "drinks", "name": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"}},
+        "boissons_alcoolisees": {"section": "drinks", "name": {"fr": "ALCOOLS", "en": "SPIRITS"}},
+        "cocktails": {"section": "drinks", "name": {"fr": "COCKTAILS", "en": "COCKTAILS"}},
+        "mocktails": {"section": "drinks", "name": {"fr": "MOCKTAILS", "en": "MOCKTAILS"}},
+        "bieres": {"section": "drinks", "name": {"fr": "BIÈRES", "en": "BEERS"}},
+        # ... ajoute les autres catégories
+    }
+    
+    current_id = 4000
     
     for category, items in menu_data.items():
-        if category in drink_categories and items:
-            cat_info = drink_categories[category]
-            section_name = cat_info["name"]["fr"]
+        if category not in category_mapping:
+            continue
             
-            # Initialiser la section si elle n'existe pas
-            if section_name not in drink_sections:
-                drink_sections[section_name] = {
-                    "name": cat_info["name"],
-                    "articles": [],
-                    "sections": []  # Pour les sous-sections (bières)
-                }
-            
-            # Gérer les sous-sections (ex: Bières Pression / Bouteilles)
-            if "subsection" in cat_info:
-                subsection = {
-                    "name": {"fr": cat_info["subsection"], "en": cat_info["subsection"]},
-                    "articles": []
-                }
-                for item in items:
-                    subsection["articles"].append(create_article(item, current_id))
-                    current_id += 1
-                drink_sections[section_name]["sections"].append(subsection)
-            else:
-                # Ajouter directement aux articles de la section
-                for item in items:
-                    drink_sections[section_name]["articles"].append(create_article(item, current_id))
-                    current_id += 1
-    
-    # Convertir drink_sections en liste
-    for section_data in drink_sections.values():
-        if section_data["sections"]:
-            # Si on a des sous-sections, ne pas inclure "articles" vide
-            if not section_data["articles"]:
-                del section_data["articles"]
-        else:
-            # Pas de sous-sections, supprimer la clé "sections" vide
-            del section_data["sections"]
+        cat_info = category_mapping[category]
+        section_type = cat_info["section"]
         
-        menus_json["drinks"].append(section_data)
+        # Créer une section pour cette catégorie
+        category_section = {
+            "name": cat_info["name"],
+            "articles": []
+        }
+        
+        for item in items:
+            article = {
+                "name": {"fr": item["nom"], "en": item["nom"]},
+                "articleId": str(current_id),
+                "posName": item["nom"],
+                "price": {"priceId": "", "amount": float(item["prix"])},
+                "img": "",
+                "descr": {"fr": item.get("description", ""), "en": item.get("description", "")},
+                "allergens": {"fr": "", "en": ""},
+                "additional": {"fr": "", "en": ""},
+                "wine_pairing": {"fr": "", "en": ""},
+                "options": [],
+                "defaultCourseId": 1,
+                "choicesForCourse": []
+            }
+            
+            category_section["articles"].append(article)
+            current_id += 1
+        
+        # Ajouter la section au bon endroit
+        if section_type == "sections":
+            menus_json["sections"].append(category_section)
+        else:
+            menus_json["drinks"].append(category_section)
     
     return menus_json
 
@@ -603,7 +414,7 @@ async def extract_menu(
             if not text.strip():
                 raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
             
-            menu_data = extract_menu_with_groq(text)
+            menu_data = classify_menu_with_groq(text)
             print(f"✅ Menu extrait du PDF avec {sum(len(v) for v in menu_data.values())} articles")
         
         else:
@@ -634,7 +445,7 @@ async def extract_menu(
             },
             "stats": {
                 "total_articles": sum(len(v) for v in menu_data.values()),
-                "par_categorie": {k: len(v) for k, v in menu_data.items() if v}
+                "par_categorie": {k: len(v) for k, v in menu_data.items()}
             }
         }
         
@@ -689,7 +500,7 @@ async def generate_menu(
             if not text.strip():
                 raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
             
-            menu_data = extract_menu_with_groq(text)
+            menu_data = classify_menu_with_groq(text)
             print(f"✅ Menu extrait du PDF avec {sum(len(v) for v in menu_data.values())} articles")
         
         else:
