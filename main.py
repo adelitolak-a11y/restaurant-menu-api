@@ -130,10 +130,15 @@ RÈGLES STRICTES :
 6. Pour les vins/champagnes, distingue verre/coupe/bouteille/magnum/jeroboam/mathusalem
 7. Si un article a des options (sirops, parfums), note-le dans la description
 8. **IMPORTANT : Si un alcool a plusieurs formats (verre/bouteille/magnum), crée UN ARTICLE PAR FORMAT avec le format dans le nom**
-   Exemple : "JACK DANIEL'S Verre" (10€), "JACK DANIEL'S Bouteille" (130€)
 9. **CRITIQUE : Les ROSÉS ne sont PAS des BLANCS ! Classe-les correctement dans vins_roses_**
 10. **CRITIQUE : Si un prix est marqué "-" ou absent, NE CRÉE PAS L'ARTICLE (ignore-le complètement)**
 11. **TABLES/TABLEAUX : Si tu vois un tableau avec colonnes Verre/Bouteille/Magnum, extrais CHAQUE COLONNE comme un article séparé**
+12. **BON SENS : Utilise ton intelligence pour classifier correctement les vins selon leur couleur/type réel, pas juste leur position dans le menu**
+13. **CATEGORIES VIDES : Si une catégorie n'a AUCUN article, tu peux complètement l'omettre du JSON (ne pas la mettre du tout)**
+
+FORMAT DE RÉPONSE (JSON UNIQUEMENT, pas de texte avant/après) :
+Retourne UNIQUEMENT les catégories qui contiennent au moins 1 article.
+Si une catégorie est vide, ne l'inclus pas dans le JSON.
 
 FORMAT DE RÉPONSE (JSON UNIQUEMENT, pas de texte avant/après) :
 {{
@@ -203,6 +208,11 @@ IMPORTANT : Retourne UNIQUEMENT le JSON, rien d'autre !"""
         raise HTTPException(status_code=500, detail=f"Erreur parsing JSON: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Groq API: {str(e)}")
+    
+
+def clean_empty_categories(menu_data: Dict) -> Dict:
+    """Supprime les catégories vides du menu"""
+    return {k: v for k, v in menu_data.items() if v and len(v) > 0}
 
 def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odoo_config: Dict = None, version: int = 1) -> Dict:
     """Génère le fichier backend.json (version 1 ou 2)"""
@@ -374,13 +384,8 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
     
     menus_json = {
         "menus": [],
-        "sections": [
-            {
-                "name": {"fr": "NOURRITURE", "en": "FOOD"},
-                "articles": []
-            }
-        ],
-        "drinks": []
+        "sections": [],  # ← Liste vide au départ
+        "drinks": []     # ← Liste vide au départ
     }
     
     # Mapping des catégories
@@ -436,6 +441,9 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
     for category, items in menu_data.items():
         if category not in category_mapping:
             continue
+        
+        if not items or len(items) == 0:
+            continue  # Saute les catégories vides
             
         cat_info = category_mapping[category]
         section_type = cat_info["section"]
@@ -526,6 +534,8 @@ async def extract_menu(
                 raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
             
             menu_data = classify_menu_with_groq(text)
+            menu_data = clean_empty_categories(menu_data)  # ← AJOUTE cette ligne
+            
             print(f"✅ Menu extrait du PDF avec {sum(len(v) for v in menu_data.values())} articles")
         
         else:
