@@ -130,26 +130,25 @@ Crée 3 articles :
 - "GREY GOOSE Magnum" (290€) dans vodkas
 NE CRÉE PAS d'article pour les "-"
 
-RÈGLES STRICTES :
+**RÈGLES STRICTES :
 1. Extrais TOUS les articles même s'ils semblent incomplets
 2. Si un prix contient une virgule (12,50), convertis-le en point (12.50)
 3. N'utilise JAMAIS de guillemets doubles " dans les noms (remplace par ')
 4. Pour les formats, note-les dans le nom : "Coca-Cola 33cl", "Bière pression 25cl"
 5. Si plusieurs formats existent (25cl/50cl), crée un article par format
 6. Pour les vins/champagnes, distingue verre/coupe/bouteille/magnum/jeroboam/mathusalem
-7. Si un article a des options (sirops, parfums), note-le dans la description
+7. **CRITIQUE : Si un article N'A PAS de description dans la carte, mets "description": false (PAS le nom du produit)**
 8. **IMPORTANT : Si un alcool a plusieurs formats (verre/bouteille/magnum), crée UN ARTICLE PAR FORMAT avec le format dans le nom**
 9. **CRITIQUE : Les ROSÉS ne sont PAS des BLANCS ! Classe-les correctement dans vins_roses_**
 10. **CRITIQUE : Si un prix est marqué "-" ou absent, NE CRÉE PAS L'ARTICLE (ignore-le complètement)**
 11. **TABLES/TABLEAUX : Si tu vois un tableau avec colonnes Verre/Bouteille/Magnum, extrais CHAQUE COLONNE comme un article séparé**
 12. **BON SENS : Utilise ton intelligence pour classifier correctement selon le TYPE de plat, si tu constates une incohérence**
-13. **CATEGORIES VIDES : Si une catégorie n'a AUCUN article, tu peux l'omettre du JSON SAUF "boissons_soft" qui doit TOUJOURS être présente (même vide avec [])**
+13. **CATEGORIES VIDES : Si une catégorie n'a AUCUN article, omets-la complètement du JSON**
 14. **ACCOMPAGNEMENTS vs SOFTS** : Les frites, purées, riz, légumes vont dans "accompagnements", PAS dans "boissons_soft"
 
 FORMAT DE RÉPONSE (JSON UNIQUEMENT, pas de texte avant/après) :
 Retourne UNIQUEMENT les catégories qui contiennent au moins 1 article.
 Si une catégorie est vide, ne l'inclus pas dans le JSON.
-EXCEPTION : "boissons_soft" doit TOUJOURS être présent (même si vide : "boissons_soft": [])
 
 FORMAT DE RÉPONSE (JSON UNIQUEMENT, pas de texte avant/après) :
 {{
@@ -216,10 +215,6 @@ IMPORTANT : Retourne UNIQUEMENT le JSON, rien d'autre !"""
         
         menu_json = json.loads(response_text)
         
-        # ✅ Forcer boissons_soft à être présent (même vide)
-        if "boissons_soft" not in menu_json:
-            menu_json["boissons_soft"] = []
-        
         return menu_json
         
     except json.JSONDecodeError as e:
@@ -230,14 +225,11 @@ IMPORTANT : Retourne UNIQUEMENT le JSON, rien d'autre !"""
     
 
 def clean_empty_categories(menu_data: Dict) -> Dict:
-    """Supprime les catégories vides du menu SAUF boissons_soft"""
+    """Supprime les catégories vides du menu"""
     cleaned = {}
     for k, v in menu_data.items():
-        # Garde toujours boissons_soft (même vide)
-        if k == "boissons_soft":
-            cleaned[k] = v if v else []
-        # Pour les autres, garde uniquement si non vide
-        elif v and len(v) > 0:
+        # Garde uniquement les catégories non vides
+        if v and len(v) > 0:
             cleaned[k] = v
     return cleaned
 
