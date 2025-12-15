@@ -55,11 +55,11 @@ def classify_menu_with_groq(text: str) -> Dict:
 TEXTE DE LA CARTE :
 {text}
 
-CATÉGORIES À EXTRAIRE (toutes obligatoires) :
+CATÉGORIES DISPONIBLES :
 
 **NOURRITURE :**
-- entrees : entrées/starters (MAIS PAS les salades)
-- salades : toutes les salades (Niçoise, Caesar, etc.)
+- entrees : entrées/starters (peut inclure les salades SI la carte ne les sépare pas)
+- salades : toutes les salades (Niçoise, Caesar, etc.) - UNIQUEMENT si la carte a une section "SALADES" dédiée
 - plats : plats principaux/mains
 - desserts : desserts
 - planches : planches à partager (charcuterie, fromage, mixte)
@@ -113,11 +113,13 @@ CATÉGORIES À EXTRAIRE (toutes obligatoires) :
 - cognacs_armagnacs : cognacs, armagnacs
 
 **RÈGLES DE CLASSIFICATION CRITIQUES :**
-1. **BURGERS** : Tous les burgers vont UNIQUEMENT dans "burgers", JAMAIS ailleurs
-2. **BRASSERIE** : Fish & chips, moules frites, tartare de boeuf, bavette, cuisse de canard = catégorie "brasserie"
-3. **ACCOMPAGNEMENTS** : Frites, bol de frites, salade verte, purées, riz, légumes, pommes grenailles = catégorie "accompagnements"
-4. **BOISSONS_SOFT** : UNIQUEMENT Coca, Sprite, Perrier, sodas, sirops, jus industriels (PAS les accompagnements)
-5. **PIZZAS vs BURGERS** : Les pizzas vont dans "pinsa_pizza", les burgers dans "burgers" (ne jamais confondre)
+1. **RESPECTE L'ORGANISATION DE LA CARTE** : Si la carte met les salades dans "NOS ENTRÉES", alors mets-les dans "entrees". Ne crée "salades" QUE si la carte a une section "NOS SALADES" distincte.
+2. **BURGERS** : Tous les burgers vont UNIQUEMENT dans "burgers", JAMAIS ailleurs
+3. **BRASSERIE** : Fish & chips, moules frites, tartare de boeuf, bavette, cuisse de canard = catégorie "brasserie"
+4. **ACCOMPAGNEMENTS** : Frites, bol de frites, salade verte, purées, riz, légumes, pommes grenailles = catégorie "accompagnements"
+5. **BOISSONS_SOFT** : UNIQUEMENT Coca, Sprite, Perrier, sodas, sirops, jus industriels (PAS les accompagnements)
+6. **PIZZAS vs BURGERS** : Les pizzas vont dans "pinsa_pizza", les burgers dans "burgers" (ne jamais confondre)
+7. **ANALYSE LA STRUCTURE** : Regarde les titres de sections dans la carte (ex: "NOS ENTRÉES", "LA BRASSERIE", "NOS SALADES") pour déterminer où classer chaque article
 
 **IMPORTANT POUR LES TABLEAUX D'ALCOOLS :**
 Si tu vois un tableau comme :          Verre    Bouteille   Magnum
@@ -217,7 +219,7 @@ IMPORTANT : Retourne UNIQUEMENT le JSON, rien d'autre !"""
         
         menu_json = json.loads(response_text)
         
-        # ✅ NOUVEAU : Forcer boissons_soft à être présent (même vide)
+        # ✅ Forcer boissons_soft à être présent (même vide)
         if "boissons_soft" not in menu_json:
             menu_json["boissons_soft"] = []
         
@@ -231,8 +233,16 @@ IMPORTANT : Retourne UNIQUEMENT le JSON, rien d'autre !"""
     
 
 def clean_empty_categories(menu_data: Dict) -> Dict:
-    """Supprime les catégories vides du menu"""
-    return {k: v for k, v in menu_data.items() if v and len(v) > 0}
+    """Supprime les catégories vides du menu SAUF boissons_soft"""
+    cleaned = {}
+    for k, v in menu_data.items():
+        # Garde toujours boissons_soft (même vide)
+        if k == "boissons_soft":
+            cleaned[k] = v if v else []
+        # Pour les autres, garde uniquement si non vide
+        elif v and len(v) > 0:
+            cleaned[k] = v
+    return cleaned
 
 def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odoo_config: Dict = None, version: int = 1) -> Dict:
     """Génère le fichier backend.json (version 1 ou 2)"""
