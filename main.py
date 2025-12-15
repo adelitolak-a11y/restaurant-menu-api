@@ -114,12 +114,9 @@ CATÉGORIES DISPONIBLES :
 
 **RÈGLES DE CLASSIFICATION CRITIQUES :**
 1. **RESPECTE L'ORGANISATION DE LA CARTE** : Si la carte met les salades dans "NOS ENTRÉES", alors mets-les dans "entrees". Ne crée "salades" QUE si la carte a une section "NOS SALADES" distincte.
-2. **BURGERS** : Tous les burgers vont UNIQUEMENT dans "burgers", JAMAIS ailleurs
-3. **BRASSERIE** : Fish & chips, moules frites, tartare de boeuf, bavette, cuisse de canard = catégorie "brasserie"
-4. **ACCOMPAGNEMENTS** : Frites, bol de frites, salade verte, purées, riz, légumes, pommes grenailles = catégorie "accompagnements"
-5. **BOISSONS_SOFT** : UNIQUEMENT Coca, Sprite, Perrier, sodas, sirops, jus industriels (PAS les accompagnements)
-6. **PIZZAS vs BURGERS** : Les pizzas vont dans "pinsa_pizza", les burgers dans "burgers" (ne jamais confondre)
-7. **ANALYSE LA STRUCTURE** : Regarde les titres de sections dans la carte (ex: "NOS ENTRÉES", "LA BRASSERIE", "NOS SALADES") pour déterminer où classer chaque article
+2. **ACCOMPAGNEMENTS** : Frites, bol de frites, salade verte, purées, riz, légumes, pommes grenailles = catégorie "accompagnements"
+3. **BOISSONS_SOFT** : UNIQUEMENT Coca, Sprite, Perrier, sodas, sirops, jus industriels (PAS les accompagnements)
+4. **ANALYSE LA STRUCTURE** : Regarde les titres de sections dans la carte (ex: "NOS ENTRÉES", "LA BRASSERIE", "NOS SALADES") pour déterminer où classer chaque article
 
 **IMPORTANT POUR LES TABLEAUX D'ALCOOLS :**
 Si tu vois un tableau comme :          Verre    Bouteille   Magnum
@@ -145,7 +142,7 @@ RÈGLES STRICTES :
 9. **CRITIQUE : Les ROSÉS ne sont PAS des BLANCS ! Classe-les correctement dans vins_roses_**
 10. **CRITIQUE : Si un prix est marqué "-" ou absent, NE CRÉE PAS L'ARTICLE (ignore-le complètement)**
 11. **TABLES/TABLEAUX : Si tu vois un tableau avec colonnes Verre/Bouteille/Magnum, extrais CHAQUE COLONNE comme un article séparé**
-12. **BON SENS : Utilise ton intelligence pour classifier correctement selon le TYPE de plat, pas juste sa position dans le menu**
+12. **BON SENS : Utilise ton intelligence pour classifier correctement selon le TYPE de plat, si tu constates une incohérence**
 13. **CATEGORIES VIDES : Si une catégorie n'a AUCUN article, tu peux l'omettre du JSON SAUF "boissons_soft" qui doit TOUJOURS être présente (même vide avec [])**
 14. **ACCOMPAGNEMENTS vs SOFTS** : Les frites, purées, riz, légumes vont dans "accompagnements", PAS dans "boissons_soft"
 
