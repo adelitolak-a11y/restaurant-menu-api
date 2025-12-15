@@ -66,6 +66,9 @@ CATÉGORIES À EXTRAIRE (toutes obligatoires) :
 - tapas : tapas, petits plaisirs croustillants, snacking, amuse-bouches
 - pinsa_pizza : pinsa, pizza
 - pates : pâtes, pasta
+- burgers : tous les burgers
+- brasserie : plats de brasserie (fish & chips, moules frites, tartares, bavettes, cuisse de canard, etc.)
+- accompagnements : frites, salade verte, bol de frites, garnitures, riz, purées, légumes grillés, pommes grenailles, etc.
 
 **BOISSONS NON-ALCOOLISÉES :**
 - boissons_soft : Coca, Perrier, Orangina, etc.
@@ -109,6 +112,13 @@ CATÉGORIES À EXTRAIRE (toutes obligatoires) :
 - digestifs : liqueurs, digestifs divers, Limoncello, Get 27, etc.
 - cognacs_armagnacs : cognacs, armagnacs
 
+**RÈGLES DE CLASSIFICATION CRITIQUES :**
+1. **BURGERS** : Tous les burgers vont UNIQUEMENT dans "burgers", JAMAIS ailleurs
+2. **BRASSERIE** : Fish & chips, moules frites, tartare de boeuf, bavette, cuisse de canard = catégorie "brasserie"
+3. **ACCOMPAGNEMENTS** : Frites, bol de frites, salade verte, purées, riz, légumes, pommes grenailles = catégorie "accompagnements"
+4. **BOISSONS_SOFT** : UNIQUEMENT Coca, Sprite, Perrier, sodas, sirops, jus industriels (PAS les accompagnements)
+5. **PIZZAS vs BURGERS** : Les pizzas vont dans "pinsa_pizza", les burgers dans "burgers" (ne jamais confondre)
+
 **IMPORTANT POUR LES TABLEAUX D'ALCOOLS :**
 Si tu vois un tableau comme :          Verre    Bouteille   Magnum
 JACK DANIEL'S  10€      130€        -
@@ -133,12 +143,14 @@ RÈGLES STRICTES :
 9. **CRITIQUE : Les ROSÉS ne sont PAS des BLANCS ! Classe-les correctement dans vins_roses_**
 10. **CRITIQUE : Si un prix est marqué "-" ou absent, NE CRÉE PAS L'ARTICLE (ignore-le complètement)**
 11. **TABLES/TABLEAUX : Si tu vois un tableau avec colonnes Verre/Bouteille/Magnum, extrais CHAQUE COLONNE comme un article séparé**
-12. **BON SENS : Utilise ton intelligence pour classifier correctement les vins selon leur couleur/type réel, pas juste leur position dans le menu**
-13. **CATEGORIES VIDES : Si une catégorie n'a AUCUN article, tu peux complètement l'omettre du JSON (ne pas la mettre du tout)**
+12. **BON SENS : Utilise ton intelligence pour classifier correctement selon le TYPE de plat, pas juste sa position dans le menu**
+13. **CATEGORIES VIDES : Si une catégorie n'a AUCUN article, tu peux l'omettre du JSON SAUF "boissons_soft" qui doit TOUJOURS être présente (même vide avec [])**
+14. **ACCOMPAGNEMENTS vs SOFTS** : Les frites, purées, riz, légumes vont dans "accompagnements", PAS dans "boissons_soft"
 
 FORMAT DE RÉPONSE (JSON UNIQUEMENT, pas de texte avant/après) :
 Retourne UNIQUEMENT les catégories qui contiennent au moins 1 article.
 Si une catégorie est vide, ne l'inclus pas dans le JSON.
+EXCEPTION : "boissons_soft" doit TOUJOURS être présent (même si vide : "boissons_soft": [])
 
 FORMAT DE RÉPONSE (JSON UNIQUEMENT, pas de texte avant/après) :
 {{
@@ -150,7 +162,10 @@ FORMAT DE RÉPONSE (JSON UNIQUEMENT, pas de texte avant/après) :
   "tapas": [...],
   "pinsa_pizza": [...],
   "pates": [...],
-  "boissons_soft": [...],
+  "burgers": [...],
+  "brasserie": [...],
+  "accompagnements": [...],
+  "boissons_soft": [...],  // TOUJOURS PRÉSENT (même vide)
   "jus": [...],
   "boissons_chaudes": [...],
   "bieres_pression": [...],
@@ -201,6 +216,11 @@ IMPORTANT : Retourne UNIQUEMENT le JSON, rien d'autre !"""
             response_text = response_text.split("```")[1].split("```")[0]
         
         menu_json = json.loads(response_text)
+        
+        # ✅ NOUVEAU : Forcer boissons_soft à être présent (même vide)
+        if "boissons_soft" not in menu_json:
+            menu_json["boissons_soft"] = []
+        
         return menu_json
         
     except json.JSONDecodeError as e:
@@ -390,51 +410,54 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
     
     # Mapping des catégories
     category_mapping = {
-    "entrees": {"section": "sections", "name": {"fr": "ENTRÉES", "en": "STARTERS"}},
-    "salades": {"section": "sections", "name": {"fr": "SALADES", "en": "SALADS"}},
-    "plats": {"section": "sections", "name": {"fr": "PLATS", "en": "MAINS"}},
-    "desserts": {"section": "sections", "name": {"fr": "DESSERTS", "en": "DESSERTS"}},
-    "planches": {"section": "sections", "name": {"fr": "PLANCHES", "en": "BOARDS"}},
-    "tapas": {"section": "sections", "name": {"fr": "TAPAS", "en": "TAPAS"}},
-    "pinsa_pizza": {"section": "sections", "name": {"fr": "PINSA & PIZZA", "en": "PINSA & PIZZA"}},
-    "pates": {"section": "sections", "name": {"fr": "PÂTES", "en": "PASTA"}},
-    
-    "boissons_soft": {"section": "drinks", "name": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"}},
-    "jus": {"section": "drinks", "name": {"fr": "JUS", "en": "JUICES"}},
-    "boissons_chaudes": {"section": "drinks", "name": {"fr": "CAFÉTERIE", "en": "HOT DRINKS"}},
-    
-    "bieres_pression": {"section": "drinks", "name": {"fr": "BIÈRES PRESSION", "en": "DRAFT BEERS"}},
-    "bieres_bouteilles": {"section": "drinks", "name": {"fr": "BIÈRES BOUTEILLES", "en": "BOTTLED BEERS"}},
-    
-    "vins_blancs_verre": {"section": "drinks", "name": {"fr": "VINS BLANCS VERRE", "en": "WHITE WINES GLASS"}},
-    "vins_rouges_verre": {"section": "drinks", "name": {"fr": "VINS ROUGES VERRE", "en": "RED WINES GLASS"}},
-    "vins_roses_verre": {"section": "drinks", "name": {"fr": "VINS ROSÉS VERRE", "en": "ROSÉ WINES GLASS"}},
-    
-    "vins_blancs_bouteille": {"section": "drinks", "name": {"fr": "VINS BLANCS BOUTEILLE", "en": "WHITE WINES BOTTLE"}},
-    "vins_rouges_bouteille": {"section": "drinks", "name": {"fr": "VINS ROUGES BOUTEILLE", "en": "RED WINES BOTTLE"}},
-    "vins_roses_bouteille": {"section": "drinks", "name": {"fr": "VINS ROSÉS BOUTEILLE", "en": "ROSÉ WINES BOTTLE"}},
-    
-    "vins_blancs_magnum": {"section": "drinks", "name": {"fr": "VINS BLANCS MAGNUM", "en": "WHITE WINES MAGNUM"}},
-    "vins_rouges_magnum": {"section": "drinks", "name": {"fr": "VINS ROUGES MAGNUM", "en": "RED WINES MAGNUM"}},
-    "vins_roses_magnum": {"section": "drinks", "name": {"fr": "VINS ROSÉS MAGNUM", "en": "ROSÉ WINES MAGNUM"}},
-    
-    "champagnes_coupe": {"section": "drinks", "name": {"fr": "CHAMPAGNES COUPE", "en": "CHAMPAGNES GLASS"}},
-    "champagnes_bouteille": {"section": "drinks", "name": {"fr": "CHAMPAGNES BOUTEILLE", "en": "CHAMPAGNES BOTTLE"}},
-    "champagnes_magnum": {"section": "drinks", "name": {"fr": "CHAMPAGNES MAGNUM", "en": "CHAMPAGNES MAGNUM"}},
-    
-    "aperitifs": {"section": "drinks", "name": {"fr": "APÉRITIFS", "en": "APERITIFS"}},
-    "spritz": {"section": "drinks", "name": {"fr": "SPRITZ", "en": "SPRITZ"}},
-    "cocktails": {"section": "drinks", "name": {"fr": "COCKTAILS", "en": "COCKTAILS"}},
-    "mocktails": {"section": "drinks", "name": {"fr": "MOCKTAILS", "en": "MOCKTAILS"}},
-    
-    "rhums": {"section": "drinks", "name": {"fr": "RHUMS", "en": "RUMS"}},
-    "vodkas": {"section": "drinks", "name": {"fr": "VODKAS", "en": "VODKAS"}},
-    "gins": {"section": "drinks", "name": {"fr": "GINS", "en": "GINS"}},
-    "tequilas": {"section": "drinks", "name": {"fr": "TEQUILAS", "en": "TEQUILAS"}},
-    "whiskies": {"section": "drinks", "name": {"fr": "WHISKIES", "en": "WHISKIES"}},
-    "digestifs": {"section": "drinks", "name": {"fr": "DIGESTIFS", "en": "DIGESTIFS"}},
-    "cognacs_armagnacs": {"section": "drinks", "name": {"fr": "COGNACS & ARMAGNACS", "en": "COGNACS & ARMAGNACS"}}
-}
+        "entrees": {"section": "sections", "name": {"fr": "ENTRÉES", "en": "STARTERS"}},
+        "salades": {"section": "sections", "name": {"fr": "SALADES", "en": "SALADS"}},
+        "plats": {"section": "sections", "name": {"fr": "PLATS", "en": "MAINS"}},
+        "desserts": {"section": "sections", "name": {"fr": "DESSERTS", "en": "DESSERTS"}},
+        "planches": {"section": "sections", "name": {"fr": "PLANCHES", "en": "BOARDS"}},
+        "tapas": {"section": "sections", "name": {"fr": "TAPAS", "en": "TAPAS"}},
+        "pinsa_pizza": {"section": "sections", "name": {"fr": "PINSA & PIZZA", "en": "PINSA & PIZZA"}},
+        "pates": {"section": "sections", "name": {"fr": "PÂTES", "en": "PASTA"}},
+        "burgers": {"section": "sections", "name": {"fr": "BURGERS", "en": "BURGERS"}},
+        "brasserie": {"section": "sections", "name": {"fr": "LA BRASSERIE", "en": "BRASSERIE"}},
+        "accompagnements": {"section": "sections", "name": {"fr": "ACCOMPAGNEMENTS", "en": "SIDE DISHES"}},
+        
+        "boissons_soft": {"section": "drinks", "name": {"fr": "SOFTS-EAUX", "en": "SOFT DRINKS"}},
+        "jus": {"section": "drinks", "name": {"fr": "JUS", "en": "JUICES"}},
+        "boissons_chaudes": {"section": "drinks", "name": {"fr": "CAFÉTERIE", "en": "HOT DRINKS"}},
+        
+        "bieres_pression": {"section": "drinks", "name": {"fr": "BIÈRES PRESSION", "en": "DRAFT BEERS"}},
+        "bieres_bouteilles": {"section": "drinks", "name": {"fr": "BIÈRES BOUTEILLES", "en": "BOTTLED BEERS"}},
+        
+        "vins_blancs_verre": {"section": "drinks", "name": {"fr": "VINS BLANCS VERRE", "en": "WHITE WINES GLASS"}},
+        "vins_rouges_verre": {"section": "drinks", "name": {"fr": "VINS ROUGES VERRE", "en": "RED WINES GLASS"}},
+        "vins_roses_verre": {"section": "drinks", "name": {"fr": "VINS ROSÉS VERRE", "en": "ROSÉ WINES GLASS"}},
+        
+        "vins_blancs_bouteille": {"section": "drinks", "name": {"fr": "VINS BLANCS BOUTEILLE", "en": "WHITE WINES BOTTLE"}},
+        "vins_rouges_bouteille": {"section": "drinks", "name": {"fr": "VINS ROUGES BOUTEILLE", "en": "RED WINES BOTTLE"}},
+        "vins_roses_bouteille": {"section": "drinks", "name": {"fr": "VINS ROSÉS BOUTEILLE", "en": "ROSÉ WINES BOTTLE"}},
+        
+        "vins_blancs_magnum": {"section": "drinks", "name": {"fr": "VINS BLANCS MAGNUM", "en": "WHITE WINES MAGNUM"}},
+        "vins_rouges_magnum": {"section": "drinks", "name": {"fr": "VINS ROUGES MAGNUM", "en": "RED WINES MAGNUM"}},
+        "vins_roses_magnum": {"section": "drinks", "name": {"fr": "VINS ROSÉS MAGNUM", "en": "ROSÉ WINES MAGNUM"}},
+        
+        "champagnes_coupe": {"section": "drinks", "name": {"fr": "CHAMPAGNES COUPE", "en": "CHAMPAGNES GLASS"}},
+        "champagnes_bouteille": {"section": "drinks", "name": {"fr": "CHAMPAGNES BOUTEILLE", "en": "CHAMPAGNES BOTTLE"}},
+        "champagnes_magnum": {"section": "drinks", "name": {"fr": "CHAMPAGNES MAGNUM", "en": "CHAMPAGNES MAGNUM"}},
+        
+        "aperitifs": {"section": "drinks", "name": {"fr": "APÉRITIFS", "en": "APERITIFS"}},
+        "spritz": {"section": "drinks", "name": {"fr": "SPRITZ", "en": "SPRITZ"}},
+        "cocktails": {"section": "drinks", "name": {"fr": "COCKTAILS", "en": "COCKTAILS"}},
+        "mocktails": {"section": "drinks", "name": {"fr": "MOCKTAILS", "en": "MOCKTAILS"}},
+        
+        "rhums": {"section": "drinks", "name": {"fr": "RHUMS", "en": "RUMS"}},
+        "vodkas": {"section": "drinks", "name": {"fr": "VODKAS", "en": "VODKAS"}},
+        "gins": {"section": "drinks", "name": {"fr": "GINS", "en": "GINS"}},
+        "tequilas": {"section": "drinks", "name": {"fr": "TEQUILAS", "en": "TEQUILAS"}},
+        "whiskies": {"section": "drinks", "name": {"fr": "WHISKIES", "en": "WHISKIES"}},
+        "digestifs": {"section": "drinks", "name": {"fr": "DIGESTIFS", "en": "DIGESTIFS"}},
+        "cognacs_armagnacs": {"section": "drinks", "name": {"fr": "COGNACS & ARMAGNACS", "en": "COGNACS & ARMAGNACS"}}
+    }
     
     current_id = 4000
     
