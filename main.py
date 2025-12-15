@@ -403,8 +403,8 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
     
     menus_json = {
         "menus": [],
-        "sections": [],  # ← Liste vide au départ
-        "drinks": []     # ← Liste vide au départ
+        "sections": [],
+        "drinks": []
     }
     
     # Mapping des catégories
@@ -465,25 +465,29 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
             continue
         
         if not items or len(items) == 0:
-            continue  # Saute les catégories vides
+            continue
             
         cat_info = category_mapping[category]
         section_type = cat_info["section"]
         
-        # Créer une section pour cette catégorie
         category_section = {
             "name": cat_info["name"],
             "articles": []
         }
         
         for item in items:
+            # ✅ Nettoyage de la description
+            desc_value = item.get("description", False)
+            # Si c'est false, vide, ou égal au nom du produit → chaîne vide
+            desc_text = "" if (desc_value is False or not desc_value or desc_value == item["nom"]) else desc_value
+            
             article = {
                 "name": {"fr": item["nom"], "en": item["nom"]},
                 "articleId": str(current_id),
                 "posName": item["nom"],
                 "price": {"priceId": "", "amount": float(item["prix"])},
                 "img": "",
-                "descr": {"fr": item.get("description", ""), "en": item.get("description", "")},
+                "descr": {"fr": desc_text, "en": desc_text},  # ✅ Utilise la valeur nettoyée
                 "allergens": {"fr": "", "en": ""},
                 "additional": {"fr": "", "en": ""},
                 "wine_pairing": {"fr": "", "en": ""},
@@ -495,7 +499,6 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
             category_section["articles"].append(article)
             current_id += 1
         
-        # Ajouter la section au bon endroit
         if section_type == "sections":
             menus_json["sections"].append(category_section)
         else:
