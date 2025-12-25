@@ -398,7 +398,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             }
         }
 
-def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
+def generate_menus_json(menu_data: Dict, restaurant_id: str, item_images: Dict = None) -> Dict:
     """Génère le fichier menus.4.json au format Odoo"""
     
     menus_json = {
