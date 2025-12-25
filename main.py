@@ -53,11 +53,25 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
             import pytesseract
             from pdf2image import convert_from_bytes
             
-            images = convert_from_bytes(pdf_bytes)
+            # ✅ NOUVEAU : Traiter page par page pour libérer mémoire
+            images = convert_from_bytes(
+                pdf_bytes,
+                dpi=150,  # ✅ Réduire la résolution (200 par défaut)
+                fmt='jpeg',  # ✅ Format plus léger
+                thread_count=1  # ✅ Un seul thread
+            )
             text = ""
             for i, image in enumerate(images):
                 print(f"📸 OCR page {i+1}/{len(images)}")
+                # ✅ Redimensionner l'image si trop grande
+                if image.width > 2000:
+                    ratio = 2000 / image.width
+                    new_size = (2000, int(image.height * ratio))
+                    image = image.resize(new_size)
+                
                 text += pytesseract.image_to_string(image, lang='fra')
+                image.close()  # ✅ Libérer mémoire
+            
             print(f"✅ OCR: {len(text)} caractères extraits")
         
         return text
