@@ -38,44 +38,25 @@ ODOO_USERNAME = os.getenv("ODOO_USERNAME", "admin")
 ODOO_PASSWORD = os.getenv("ODOO_PASSWORD", "")
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extrait le texte d'un PDF avec PyMuPDF + OCR si nécessaire"""
+    """Extrait le texte d'un PDF avec PyMuPDF"""
     try:
-        # Essayer PyMuPDF d'abord
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         text = ""
         for page in doc:
             text += page.get_text()
         doc.close()
         
-        # Si texte insuffisant, utiliser OCR
+        # Si pas de texte, c'est un PDF image
         if len(text.strip()) < 50:
-            print("⚠️ PDF image détecté, utilisation OCR...")
-            import pytesseract
-            from pdf2image import convert_from_bytes
-            
-            # ✅ NOUVEAU : Traiter page par page pour libérer mémoire
-            images = convert_from_bytes(
-                pdf_bytes,
-                dpi=150,  # ✅ Réduire la résolution (200 par défaut)
-                fmt='jpeg',  # ✅ Format plus léger
-                thread_count=1  # ✅ Un seul thread
+            raise HTTPException(
+                status_code=400, 
+                detail="⚠️ Ce PDF est une image scannée. Veuillez convertir votre PDF en format texte ou saisir le menu manuellement."
             )
-            text = ""
-            for i, image in enumerate(images):
-                print(f"📸 OCR page {i+1}/{len(images)}")
-                # ✅ Redimensionner l'image si trop grande
-                if image.width > 2000:
-                    ratio = 2000 / image.width
-                    new_size = (2000, int(image.height * ratio))
-                    image = image.resize(new_size)
-                
-                text += pytesseract.image_to_string(image, lang='fra')
-                image.close()  # ✅ Libérer mémoire
-            
-            print(f"✅ OCR: {len(text)} caractères extraits")
         
         return text
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erreur lecture PDF: {str(e)}")
 
