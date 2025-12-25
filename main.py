@@ -476,18 +476,21 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
         }
         
         for item in items:
-            # ✅ Nettoyage de la description
             desc_value = item.get("description", False)
-            # Si c'est false, vide, ou égal au nom du produit → chaîne vide
             desc_text = "" if (desc_value is False or not desc_value or desc_value == item["nom"]) else desc_value
+            
+            # ✅ NOUVEAU : Récupérer le chemin de l'image si elle existe
+            item_image_path = ""
+            if item_images and str(current_id) in item_images:
+                item_image_path = item_images[str(current_id)]
             
             article = {
                 "name": {"fr": item["nom"], "en": item["nom"]},
                 "articleId": str(current_id),
                 "posName": item["nom"],
                 "price": {"priceId": "", "amount": float(item["prix"])},
-                "img": "",
-                "descr": {"fr": desc_text, "en": desc_text},  # ✅ Utilise la valeur nettoyée
+                "img": item_image_path,  # ✅ MODIFIÉ : utiliser le chemin de l'image
+                "descr": {"fr": desc_text, "en": desc_text},
                 "allergens": {"fr": "", "en": ""},
                 "additional": {"fr": "", "en": ""},
                 "wine_pairing": {"fr": "", "en": ""},
@@ -617,7 +620,8 @@ async def generate_menu(
     country: str = Form("France"),
     menu_file: UploadFile = File(None),
     manual_menu: str = Form(None),
-    validated_menu: str = Form(None)
+    validated_menu: str = Form(None),
+    item_images_json: str = Form(None)  # ✅ NOUVEAU paramètre
 ):
     """Génère les 3 fichiers JSON nécessaires"""
     try:
@@ -671,14 +675,25 @@ async def generate_menu(
             "button_menu_block_font": color_button_menu_block_font
         }
         
-    
-        # ✅ NOUVEAU - Générer backend AVANT menus
+        # ✅✅✅ NOUVEAU CODE ICI ✅✅✅
+        # Parser les images si elles existent
+        item_images = {}
+        if item_images_json:
+            try:
+                item_images = json.loads(item_images_json)
+                print(f"✅ {len(item_images)} images de plats reçues")
+            except:
+                print("⚠️ Erreur parsing item_images_json")
+                pass
+        
+        # Générer les fichiers avec les images
         backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
         backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
-        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"])
+        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)  # ✅ MODIFIÉ : on passe item_images
         frontend_json = generate_frontend_json(restaurant_name, colors, version=1)
         frontend_2_json = generate_frontend_json(restaurant_name, colors, version=2)
         menus_2_json = menus_json.copy()
+        # ✅✅✅ FIN DU NOUVEAU CODE ✅✅✅
         
         # 4. Retourner les 3 fichiers
         return {
@@ -694,7 +709,7 @@ async def generate_menu(
                 "menus_2": json.dumps(menus_2_json,  ensure_ascii=False, separators=(',', ':'))
             },
             "stats": {
-                "total_articles": sum(len(v) for v in menu_data.values()),  # ✅ CORRECT
+                "total_articles": sum(len(v) for v in menu_data.values()),
                 "entrees": len(menu_data.get('entrees', [])),
                 "plats": len(menu_data.get('plats', [])),
                 "desserts": len(menu_data.get('desserts', [])),
@@ -707,6 +722,78 @@ async def generate_menu(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+@app.post("/upload-item-images")
+async def upload_item_images(
+    restaurant_name: str = Form(...),
+    item_images_json: str = Form(...),  # JSON avec {itemId: file}
+    ftp_password: str = Form(...),
+    item_images: List[UploadFile] = File(...)
+):
+    """Upload les images des plats sur le serveur"""
+    try:
+        import paramiko
+        
+        SFTP_HOST = "178.32.198.72"
+        SFTP_USER = "snadmin"
+        
+        # Connexion SFTP (port 22 pour les images)
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(
+            hostname=SFTP_HOST,
+            port=22,
+            username=SFTP_USER,
+            password=ftp_password,
+            timeout=30,
+            look_for_keys=False,
+            allow_agent=False
+        )
+        
+        sftp = ssh.open_sftp()
+        
+        # Créer le dossier images si nécessaire
+        IMAGES_PATH = "/var/www/pleazze/static/adel"
+        try:
+            parts = IMAGES_PATH.split('/')
+            current = ''
+            for part in parts:
+                if not part:
+                    continue
+                current += '/' + part
+                try:
+                    sftp.mkdir(current)
+                except:
+                    pass
+        except:
+            pass
+        
+        # Parser le JSON des correspondances
+        item_images_map = json.loads(item_images_json)
+        uploaded_paths = {}
+        
+        # Upload chaque image
+        for i, image_file in enumerate(item_images):
+            item_id = item_images_map.get(str(i))
+            if not item_id:
+                continue
+            
+            image_path = save_item_image(sftp, image_file.file, restaurant_name, item_id)
+            if image_path:
+                uploaded_paths[item_id] = image_path
+        
+        sftp.close()
+        ssh.close()
+        
+        return {
+            "success": True,
+            "uploaded_images": uploaded_paths,
+            "message": f"✅ {len(uploaded_paths)} images uploadées"
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.get("/health")
 def health_check():
@@ -1063,6 +1150,40 @@ async def verify_uploaded_files(
         
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+def save_item_image(sftp, image_file, restaurant_name: str, item_id: str) -> str:
+    """Sauvegarde une image de plat et retourne le chemin"""
+    try:
+        from PIL import Image
+        import io
+        
+        # Convertir en PNG
+        image_bytes = image_file.read()
+        image = Image.open(io.BytesIO(image_bytes))
+        png_buffer = io.BytesIO()
+        image.save(png_buffer, format='PNG')
+        png_buffer.seek(0)
+        
+        # Créer le nom de fichier
+        safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
+        filename = f'item-{safe_restaurant_name}-{item_id}.png'
+        
+        # Chemin sur le serveur
+        IMAGES_PATH = "/var/www/pleazze/static/adel"
+        file_path = f'{IMAGES_PATH}/{filename}'
+        
+        # Upload
+        with sftp.file(file_path, 'wb') as f:
+            f.write(png_buffer.getvalue())
+        
+        sftp.chmod(file_path, 0o644)
+        
+        # Retourner le chemin relatif pour le JSON
+        return f"/static/adel/{filename}"
+        
+    except Exception as e:
+        print(f"Erreur sauvegarde image item {item_id}: {str(e)}")
+        return ""
 
 if __name__ == "__main__":
     import uvicorn
