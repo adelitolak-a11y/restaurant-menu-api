@@ -489,18 +489,22 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str) -> Dict:
         }
         
         for item in items:
-            # ✅ Nettoyage de la description
+            # ✅ Récupérer l'image si elle existe
+            article_id = str(current_id)
+            image_path = ""
+            if item_images and article_id in item_images:
+                image_path = item_images[article_id]
+            
             desc_value = item.get("description", False)
-            # Si c'est false, vide, ou égal au nom du produit → chaîne vide
             desc_text = "" if (desc_value is False or not desc_value or desc_value == item["nom"]) else desc_value
             
             article = {
                 "name": {"fr": item["nom"], "en": item["nom"]},
-                "articleId": str(current_id),
+                "articleId": article_id,
                 "posName": item["nom"],
                 "price": {"priceId": "", "amount": float(item["prix"])},
-                "img": "",
-                "descr": {"fr": desc_text, "en": desc_text},  # ✅ Utilise la valeur nettoyée
+                "img": image_path,  # ✅ AJOUTE l'image ici
+                "descr": {"fr": desc_text, "en": desc_text},
                 "allergens": {"fr": "", "en": ""},
                 "additional": {"fr": "", "en": ""},
                 "wine_pairing": {"fr": "", "en": ""},
@@ -630,7 +634,8 @@ async def generate_menu(
     country: str = Form("France"),
     menu_file: UploadFile = File(None),
     manual_menu: str = Form(None),
-    validated_menu: str = Form(None)
+    validated_menu: str = Form(None),
+    item_images_json: str = Form(None)  # ✅ AJOUTE ce paramètre
 ):
     """Génère les 3 fichiers JSON nécessaires"""
     try:
@@ -685,10 +690,18 @@ async def generate_menu(
         }
         
     
-        # ✅ NOUVEAU - Générer backend AVANT menus
+        # ✅ Parser les chemins d'images
+        item_images = {}
+        if item_images_json:
+            try:
+                item_images = json.loads(item_images_json)
+            except:
+                pass
+        
+        # ✅ PASSE item_images à la fonction
         backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
         backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
-        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"])
+        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)  # ✅ ICI
         frontend_json = generate_frontend_json(restaurant_name, colors, version=1)
         frontend_2_json = generate_frontend_json(restaurant_name, colors, version=2)
         menus_2_json = menus_json.copy()
@@ -835,6 +848,95 @@ async def test_network():
             return {"status": f"❌ Port 2266 non accessible (code: {result})"}
     except Exception as e:
         return {"status": f"❌ Erreur: {str(e)}"}
+
+@app.post("/upload-item-images")
+async def upload_item_images(
+    restaurant_name: str = Form(...),
+    ftp_password: str = Form(...),
+    item_images: List[UploadFile] = File(...),
+    item_images_json: str = Form(...)
+):
+    """Upload les images des articles et retourne leurs chemins"""
+    try:
+        import paramiko
+        from PIL import Image
+        import io
+        
+        SFTP_HOST = "178.32.198.72"
+        SFTP_USER = "snadmin"
+        
+        # Connexion SFTP
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(
+            hostname=SFTP_HOST,
+            port=22,
+            username=SFTP_USER,
+            password=ftp_password,
+            timeout=30,
+            look_for_keys=False,
+            allow_agent=False
+        )
+        
+        sftp = ssh.open_sftp()
+        
+        IMAGES_PATH = "/var/www/pleazze/static/adel/items"
+        
+        # Créer le dossier
+        try:
+            parts = IMAGES_PATH.split('/')
+            current = ''
+            for part in parts:
+                if not part:
+                    continue
+                current += '/' + part
+                try:
+                    sftp.mkdir(current)
+                except:
+                    pass
+        except:
+            pass
+        
+        # Parser le mapping
+        image_mapping = json.loads(item_images_json)
+        uploaded_paths = {}
+        
+        # Upload chaque image
+        for index, image_file in enumerate(item_images):
+            article_id = image_mapping.get(str(index))
+            if not article_id:
+                continue
+            
+            # Convertir en PNG
+            image_bytes = await image_file.read()
+            image = Image.open(io.BytesIO(image_bytes))
+            png_buffer = io.BytesIO()
+            image.save(png_buffer, format='PNG')
+            png_buffer.seek(0)
+            
+            # Nom du fichier
+            filename = f'item-{article_id}.png'
+            file_path = f'{IMAGES_PATH}/{filename}'
+            
+            # Upload
+            with sftp.file(file_path, 'wb') as f:
+                f.write(png_buffer.getvalue())
+            
+            sftp.chmod(file_path, 0o644)
+            
+            # Stocker le chemin
+            uploaded_paths[article_id] = f'/static/adel/items/{filename}'
+        
+        sftp.close()
+        ssh.close()
+        
+        return {
+            "success": True,
+            "uploaded_images": uploaded_paths
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.post("/upload-to-server")
 async def upload_to_server(
