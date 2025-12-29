@@ -416,20 +416,20 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
         elif menu_data:
             frontend["home"]["buttons"] = detect_active_sections(menu_data)
         
-        # ✅ Déterminer les sections disponibles dans menu
+        # ✅ Déterminer les sections disponibles dans menu (SEULEMENT si menu_data existe)
         has_food = False
         has_drinks = False
         
-        food_categories = ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
-                          "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"]
-        drink_categories = ["boissons_soft", "jus", "boissons_chaudes", "bieres_pression", 
-                           "bieres_bouteilles", "vins_blancs_verre", "vins_rouges_verre", 
-                           "vins_roses_verre", "vins_blancs_bouteille", "vins_rouges_bouteille", 
-                           "vins_roses_bouteille", "champagnes_coupe", "champagnes_bouteille", 
-                           "aperitifs", "spritz", "cocktails", "mocktails", "rhums", "vodkas", 
-                           "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"]
-        
-        if menu_data:
+        if menu_data:  # ✅ FIX : Vérifier que menu_data existe
+            food_categories = ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
+                              "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"]
+            drink_categories = ["boissons_soft", "jus", "boissons_chaudes", "bieres_pression", 
+                               "bieres_bouteilles", "vins_blancs_verre", "vins_rouges_verre", 
+                               "vins_roses_verre", "vins_blancs_bouteille", "vins_rouges_bouteille", 
+                               "vins_roses_bouteille", "champagnes_coupe", "champagnes_bouteille", 
+                               "aperitifs", "spritz", "cocktails", "mocktails", "rhums", "vodkas", 
+                               "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"]
+            
             for cat in food_categories:
                 if menu_data.get(cat) and len(menu_data[cat]) > 0:
                     has_food = True
@@ -860,23 +860,6 @@ async def generate_menu(
                 pass
         
         # ✅ Parser les boutons sélectionnés
-        buttons = []
-        if selected_buttons:
-            try:
-                buttons = json.loads(selected_buttons)
-            except:
-                pass
-        
-        # Générer les fichiers avec les boutons personnalisés
-        backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
-        backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
-        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)
-        frontend_json = generate_frontend_json(restaurant_name, colors, 1, menu_data)
-        
-        # ✅ Version 2 avec boutons personnalisés
-        frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data)
-        if buttons:
-            frontend_2_json["home"]["buttons"] = buttons
         buttons_with_correct_index = []
         if selected_buttons:
             try:
@@ -903,15 +886,18 @@ async def generate_menu(
                         corrected_btn["drinkIndex"] = index_mapping[btn["routerLink"]]
                     
                     buttons_with_correct_index.append(corrected_btn)
-                    
+                        
             except:
                 buttons_with_correct_index = []
-        else:
-            buttons_with_correct_index = []
 
-        # Générer frontend_2 avec les boutons corrigés
+        # Générer les fichiers avec les boutons personnalisés
+        backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
+        backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
+        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)
+        frontend_json = generate_frontend_json(restaurant_name, colors, 1, menu_data)
+
+        # ✅ Version 2 avec boutons personnalisés
         frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data, buttons_with_correct_index)
-        
         menus_2_json = menus_json.copy()
         
         # 4. Retourner les 3 fichiers
