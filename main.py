@@ -801,8 +801,8 @@ async def generate_menu(
     menu_file: UploadFile = File(None),
     manual_menu: str = Form(None),
     validated_menu: str = Form(None),
-    item_images_json: str = Form(None),  # ✅ AJOUTE ce paramètre
-    selected_buttons: str = Form(None)  # ← NOUVEAU paramètre
+    item_images_json: str = Form(None),
+    selected_buttons: str = Form(None)
 ):
     """Génère les 3 fichiers JSON nécessaires"""
     try:
@@ -856,7 +856,6 @@ async def generate_menu(
             "button_menu_block_font": color_button_menu_block_font
         }
         
-    
         # ✅ Parser les chemins d'images
         item_images = {}
         if item_images_json:
@@ -873,16 +872,14 @@ async def generate_menu(
             except:
                 pass
         
-        # Générer les fichiers avec les boutons personnalisés
+        # Générer les fichiers
         backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
         backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
         menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)
         frontend_json = generate_frontend_json(restaurant_name, colors, 1, menu_data)
         
-        # ✅ Version 2 avec boutons personnalisés
-        frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data)
-        if buttons:
-            frontend_2_json["home"]["buttons"] = buttons
+        # ✅ CORRECTION : Passer menu_data ET buttons à frontend_2
+        frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data, buttons if buttons else None)
         
         menus_2_json = menus_json.copy()
         
@@ -900,7 +897,7 @@ async def generate_menu(
                 "menus_2": json.dumps(menus_2_json,  ensure_ascii=False, separators=(',', ':'))
             },
             "stats": {
-                "total_articles": sum(len(v) for v in menu_data.values()),  # ✅ CORRECT
+                "total_articles": sum(len(v) for v in menu_data.values()),
                 "entrees": len(menu_data.get('entrees', [])),
                 "plats": len(menu_data.get('plats', [])),
                 "desserts": len(menu_data.get('desserts', [])),
