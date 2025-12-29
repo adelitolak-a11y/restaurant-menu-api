@@ -322,10 +322,9 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
     
     return backend
 
-def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1) -> Dict:
+def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1, menu_data: Dict = None) -> Dict:
     """Génère le fichier frontend.json (version 1 ou 2)"""
     
-    # ✅ NOUVEAU : Chemins selon les instructions de Youri
     safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
     home_banner_path = f"/static/adel/home-banner-{safe_restaurant_name}.png"
     menu_banner_path = f"/static/adel/menu-banner-{safe_restaurant_name}.png"
@@ -356,8 +355,8 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
             }
         }
     else:
-        # VERSION 2
-        return {
+        # VERSION 2 avec boutons dynamiques
+        frontend = {
             "homeType": "home2",
             "clientMenuType": "clientMenu2",
             "cartType": "cart",
@@ -381,6 +380,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
                         "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
                     }
                 }],
+                "buttons": [],  # ← Sera rempli dynamiquement
                 "blocs": []
             },
             "menu": {
@@ -410,6 +410,106 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1)
                 }
             }
         }
+        # ✅ Ajouter les boutons dynamiques si menu_data est fourni
+        if menu_data:
+            frontend["home"]["buttons"] = detect_active_sections(menu_data)
+        
+        return frontend
+
+def detect_active_sections(menu_data: Dict) -> List[Dict]:
+    """Détecte les sections actives du menu et génère les boutons appropriés"""
+    
+    sections_config = {
+        # Nourriture
+        "sections": {
+            "categories": ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
+                          "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"],
+            "button": {
+                "routerLink": "/menus",
+                "label": {"fr": "La carte", "en": "The menu"}
+            }
+        },
+        
+        # Boissons chaudes
+        "hot_drinks": {
+            "categories": ["boissons_chaudes"],
+            "button": {
+                "routerLink": "/menus/drinks/1",
+                "label": {"fr": "Boissons chaudes", "en": "Hot drinks"}
+            }
+        },
+        
+        # Boissons froides
+        "cold_drinks": {
+            "categories": ["boissons_soft", "jus"],
+            "button": {
+                "routerLink": "/menus/drinks/0",
+                "label": {"fr": "Boissons fraîches", "en": "Cold drinks"}
+            }
+        },
+        
+        # Bières
+        "beers": {
+            "categories": ["bieres_pression", "bieres_bouteilles"],
+            "button": {
+                "routerLink": "/menus/drinks/2",
+                "label": {"fr": "Bières", "en": "Beers"}
+            }
+        },
+        
+        # Vins
+        "wines": {
+            "categories": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
+                          "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
+                          "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum"],
+            "button": {
+                "routerLink": "/menus/drinks/3",
+                "label": {"fr": "Vins", "en": "Wines"}
+            }
+        },
+        
+        # Champagnes
+        "champagnes": {
+            "categories": ["champagnes_coupe", "champagnes_bouteille", "champagnes_magnum"],
+            "button": {
+                "routerLink": "/menus/drinks/4",
+                "label": {"fr": "Champagnes", "en": "Champagnes"}
+            }
+        },
+        
+        # Cocktails & Apéritifs
+        "cocktails": {
+            "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
+            "button": {
+                "routerLink": "/menus/drinks/5",
+                "label": {"fr": "Cocktails", "en": "Cocktails"}
+            }
+        },
+        
+        # Spiritueux
+        "spirits": {
+            "categories": ["rhums", "vodkas", "gins", "tequilas", "whiskies", 
+                          "digestifs", "cognacs_armagnacs"],
+            "button": {
+                "routerLink": "/menus/drinks/6",
+                "label": {"fr": "Spiritueux", "en": "Spirits"}
+            }
+        }
+    }
+    
+    active_buttons = []
+    
+    for section_key, section_config in sections_config.items():
+        # Vérifier si au moins une catégorie de cette section contient des articles
+        has_items = any(
+            menu_data.get(cat) and len(menu_data.get(cat, [])) > 0 
+            for cat in section_config["categories"]
+        )
+        
+        if has_items:
+            active_buttons.append(section_config["button"])
+    
+    return active_buttons
 
 def generate_menus_json(menu_data: Dict, restaurant_id: str, item_images: Dict = None) -> Dict:
     """Génère le fichier menus.4.json au format Odoo"""
@@ -584,6 +684,7 @@ async def extract_menu(
             raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF soit un menu manuel")
         
         # Retourner uniquement les données extraites pour prévisualisation
+        active_buttons = detect_active_sections(menu_data)
         return {
             "success": True,
             "data": {
@@ -596,7 +697,8 @@ async def extract_menu(
                     "footer_accent": color_footer_accent,
                     "button_accent_background": color_button_accent_bg,
                     "button_primary_font": color_button_primary_font,
-                    "button_menu_block_font": color_button_menu_block_font
+                    "button_menu_block_font": color_button_menu_block_font,
+                    "suggested_buttons": active_buttons  # ← NOUVEAU
                 },
                 "address": {
                     "street": street,
@@ -635,7 +737,8 @@ async def generate_menu(
     menu_file: UploadFile = File(None),
     manual_menu: str = Form(None),
     validated_menu: str = Form(None),
-    item_images_json: str = Form(None)  # ✅ AJOUTE ce paramètre
+    item_images_json: str = Form(None),  # ✅ AJOUTE ce paramètre
+    selected_buttons: str = Form(None)  # ← NOUVEAU paramètre
 ):
     """Génère les 3 fichiers JSON nécessaires"""
     try:
@@ -698,12 +801,25 @@ async def generate_menu(
             except:
                 pass
         
-        # ✅ PASSE item_images à la fonction
+        # ✅ Parser les boutons sélectionnés
+        buttons = []
+        if selected_buttons:
+            try:
+                buttons = json.loads(selected_buttons)
+            except:
+                pass
+        
+        # Générer les fichiers avec les boutons personnalisés
         backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
         backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
-        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)  # ✅ ICI
-        frontend_json = generate_frontend_json(restaurant_name, colors, version=1)
-        frontend_2_json = generate_frontend_json(restaurant_name, colors, version=2)
+        menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)
+        frontend_json = generate_frontend_json(restaurant_name, colors, version=1, menu_data)
+        
+        # ✅ Version 2 avec boutons personnalisés
+        frontend_2_json = generate_frontend_json(restaurant_name, colors, version=2, menu_data)
+        if buttons:
+            frontend_2_json["home"]["buttons"] = buttons
+        
         menus_2_json = menus_json.copy()
         
         # 4. Retourner les 3 fichiers
