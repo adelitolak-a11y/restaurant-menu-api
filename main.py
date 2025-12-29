@@ -410,26 +410,28 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
             }
         }
         
-        # ✅ Ajouter les boutons (selected_buttons a déjà les bons index)
+        # ✅ Ajouter les boutons sélectionnés
         if selected_buttons:
             frontend["home"]["buttons"] = selected_buttons
         elif menu_data:
             frontend["home"]["buttons"] = detect_active_sections(menu_data)
         
-        # ✅ Déterminer les sections disponibles dans menu (SEULEMENT si menu_data existe)
+        # ✅ NOUVEAU : Déterminer les sections disponibles dans menu
         has_food = False
         has_drinks = False
         
-        if menu_data:  # ✅ FIX : Vérifier que menu_data existe
-            food_categories = ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
-                              "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"]
-            drink_categories = ["boissons_soft", "jus", "boissons_chaudes", "bieres_pression", 
-                               "bieres_bouteilles", "vins_blancs_verre", "vins_rouges_verre", 
-                               "vins_roses_verre", "vins_blancs_bouteille", "vins_rouges_bouteille", 
-                               "vins_roses_bouteille", "champagnes_coupe", "champagnes_bouteille", 
-                               "aperitifs", "spritz", "cocktails", "mocktails", "rhums", "vodkas", 
-                               "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"]
-            
+        food_categories = ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
+                          "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"]
+        drink_categories = ["boissons_soft", "jus", "boissons_chaudes", "bieres_pression", 
+                           "bieres_bouteilles", "vins_blancs_verre", "vins_rouges_verre", 
+                           "vins_roses_verre", "vins_blancs_bouteille", "vins_rouges_bouteille", 
+                           "vins_roses_bouteille", "champagnes_coupe", "champagnes_bouteille", 
+                           "aperitifs", "spritz", "cocktails", "mocktails", "rhums", "vodkas", 
+                           "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs",
+                           "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum",
+                           "champagnes_magnum"]
+        
+        if menu_data:
             for cat in food_categories:
                 if menu_data.get(cat) and len(menu_data[cat]) > 0:
                     has_food = True
@@ -443,7 +445,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
         # ✅ Construire la section "menu" selon ce qui est disponible
         menu_section = frontend["menu"]
         
-        # ✅ AJOUT CONDITIONNEL : ajoute drinks OU sections selon disponibilité
+        # ✅ LOGIQUE SIMPLIFIÉE : Ajouter uniquement ce qui existe
         if has_drinks:
             menu_section["drinks"] = {
                 "title": {"fr": "LES BOISSONS", "en": "DRINKS"},
@@ -455,6 +457,9 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
                 "title": {"fr": "LA CARTE", "en": "THE MENU"},
                 "button": {"fr": "LA CARTE", "en": "THE MENU"}
             }
+        
+        # ✅ NE JAMAIS ajouter "menus" (formules) automatiquement
+        # Si tu veux les formules, il faudra les ajouter manuellement plus tard
         
         return frontend
 
@@ -475,28 +480,31 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
         }
     ]
     
-    # ✅ DRINKS avec numérotation DYNAMIQUE
+    # ✅ DRINKS avec numérotation FIXE et PRÉVISIBLE
     drink_sections = [
         {
             "categories": ["boissons_soft", "jus"],
             "button": {
                 "label": {"fr": "Boissons fraîches", "en": "Cold drinks"}
             },
-            "priority": 4
+            "priority": 4,
+            "fixed_index": 0  # ✅ INDEX FIXE
         },
         {
             "categories": ["boissons_chaudes"],
             "button": {
                 "label": {"fr": "Boissons chaudes", "en": "Hot drinks"}
             },
-            "priority": 5
+            "priority": 5,
+            "fixed_index": 1  # ✅ INDEX FIXE
         },
         {
             "categories": ["bieres_pression", "bieres_bouteilles"],
             "button": {
                 "label": {"fr": "Bières", "en": "Beers"}
             },
-            "priority": 6
+            "priority": 6,
+            "fixed_index": 2  # ✅ INDEX FIXE
         },
         {
             "categories": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
@@ -505,21 +513,24 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
             "button": {
                 "label": {"fr": "Vins", "en": "Wines"}
             },
-            "priority": 3
+            "priority": 3,
+            "fixed_index": 3  # ✅ INDEX FIXE
         },
         {
             "categories": ["champagnes_coupe", "champagnes_bouteille", "champagnes_magnum"],
             "button": {
                 "label": {"fr": "Champagnes", "en": "Champagnes"}
             },
-            "priority": 7
+            "priority": 7,
+            "fixed_index": 4  # ✅ INDEX FIXE
         },
         {
             "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
             "button": {
                 "label": {"fr": "Cocktails", "en": "Cocktails"}
             },
-            "priority": 2
+            "priority": 2,
+            "fixed_index": 5  # ✅ INDEX FIXE
         },
         {
             "categories": ["rhums", "vodkas", "gins", "tequilas", "whiskies", 
@@ -527,12 +538,12 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
             "button": {
                 "label": {"fr": "Spiritueux", "en": "Spirits"}
             },
-            "priority": 8
+            "priority": 8,
+            "fixed_index": 6  # ✅ INDEX FIXE
         }
     ]
     
-    # ✅ Calculer l'index DYNAMIQUE pour chaque section de drinks
-    current_drink_index = 0
+    # ✅ Ajouter les sections de drinks AVEC leur index fixe
     for drink_section in drink_sections:
         total_items = sum(
             len(menu_data.get(cat, [])) 
@@ -540,10 +551,9 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
         )
         
         if total_items > 0:
-            drink_section["button"]["routerLink"] = f"/menus/drinks/{current_drink_index}"
-            drink_section["button"]["drinkIndex"] = current_drink_index
+            drink_section["button"]["routerLink"] = f"/menus/drinks/{drink_section['fixed_index']}"
+            drink_section["button"]["drinkIndex"] = drink_section["fixed_index"]
             sections_config.append(drink_section)
-            current_drink_index += 1
     
     # ✅ Générer les suggestions
     suggestions = []
@@ -860,44 +870,24 @@ async def generate_menu(
                 pass
         
         # ✅ Parser les boutons sélectionnés
-        buttons_with_correct_index = []
+        buttons = []
         if selected_buttons:
             try:
-                raw_buttons = json.loads(selected_buttons)
-                
-                # ✅ Recalculer les index dynamiques pour les drinks
-                all_suggestions = detect_active_sections(menu_data)
-                
-                # Créer un mapping routerLink -> drinkIndex correct
-                index_mapping = {}
-                for suggestion in all_suggestions:
-                    if suggestion.get("drinkIndex") is not None:
-                        index_mapping[suggestion["routerLink"]] = suggestion["drinkIndex"]
-                
-                # Appliquer les bons index aux boutons sélectionnés
-                for btn in raw_buttons:
-                    corrected_btn = {
-                        "routerLink": btn["routerLink"],
-                        "label": btn["label"]
-                    }
-                    
-                    # Si c'est un drink, utiliser le bon index
-                    if btn["routerLink"] in index_mapping:
-                        corrected_btn["drinkIndex"] = index_mapping[btn["routerLink"]]
-                    
-                    buttons_with_correct_index.append(corrected_btn)
-                        
+                buttons = json.loads(selected_buttons)
             except:
-                buttons_with_correct_index = []
-
+                pass
+        
         # Générer les fichiers avec les boutons personnalisés
         backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
         backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
         menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)
         frontend_json = generate_frontend_json(restaurant_name, colors, 1, menu_data)
-
+        
         # ✅ Version 2 avec boutons personnalisés
-        frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data, buttons_with_correct_index)
+        frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data)
+        if buttons:
+            frontend_2_json["home"]["buttons"] = buttons
+        
         menus_2_json = menus_json.copy()
         
         # 4. Retourner les 3 fichiers
