@@ -417,9 +417,9 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
         return frontend
 
 def detect_active_sections(menu_data: Dict) -> List[Dict]:
-    """Détecte les sections actives du menu et génère les boutons appropriés (max 3)"""
+    """Détecte TOUTES les sections actives et génère des suggestions (pas de limite ici)"""
     
-    # ✅ ORDRE DE PRIORITÉ : les plus importants en premier
+    # ✅ Configuration complète avec les BONS numéros de routerLink
     sections_config = [
         # PRIORITÉ 1 : La carte (nourriture)
         {
@@ -428,36 +428,41 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
             "button": {
                 "routerLink": "/menus",
                 "label": {"fr": "La carte", "en": "The menu"}
-            }
+            },
+            "priority": 1
         },
         
-        # PRIORITÉ 2 : Boissons (regroupe TOUT)
+        # Boissons chaudes
         {
-            "categories": ["boissons_soft", "jus", "boissons_chaudes", 
-                          "bieres_pression", "bieres_bouteilles",
-                          "vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
-                          "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
-                          "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum",
-                          "champagnes_coupe", "champagnes_bouteille", "champagnes_magnum",
-                          "aperitifs", "spritz", "cocktails", "mocktails",
-                          "rhums", "vodkas", "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"],
+            "categories": ["boissons_chaudes"],
+            "button": {
+                "routerLink": "/menus/drinks/1",
+                "label": {"fr": "Boissons chaudes", "en": "Hot drinks"}
+            },
+            "priority": 5
+        },
+        
+        # Boissons froides (softs)
+        {
+            "categories": ["boissons_soft", "jus"],
             "button": {
                 "routerLink": "/menus/drinks/0",
-                "label": {"fr": "Boissons", "en": "Drinks"}
-            }
-        },
-        
-        # PRIORITÉ 3 : Cocktails (si beaucoup de cocktails)
-        {
-            "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
-            "button": {
-                "routerLink": "/menus/drinks/5",
-                "label": {"fr": "Cocktails", "en": "Cocktails"}
+                "label": {"fr": "Boissons fraîches", "en": "Cold drinks"}
             },
-            "min_items": 8  # ✅ Seulement si au moins 8 cocktails
+            "priority": 4
         },
         
-        # PRIORITÉ 4 : Vins (si beaucoup de vins)
+        # Bières
+        {
+            "categories": ["bieres_pression", "bieres_bouteilles"],
+            "button": {
+                "routerLink": "/menus/drinks/2",
+                "label": {"fr": "Bières", "en": "Beers"}
+            },
+            "priority": 6
+        },
+        
+        # Vins
         {
             "categories": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
                           "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
@@ -466,30 +471,61 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "routerLink": "/menus/drinks/3",
                 "label": {"fr": "Vins", "en": "Wines"}
             },
-            "min_items": 10  # ✅ Seulement si au moins 10 vins
+            "priority": 3
+        },
+        
+        # Champagnes
+        {
+            "categories": ["champagnes_coupe", "champagnes_bouteille", "champagnes_magnum"],
+            "button": {
+                "routerLink": "/menus/drinks/4",
+                "label": {"fr": "Champagnes", "en": "Champagnes"}
+            },
+            "priority": 7
+        },
+        
+        # Cocktails & Apéritifs
+        {
+            "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
+            "button": {
+                "routerLink": "/menus/drinks/5",  # ✅ CORRIGÉ : était /drinks/3 avant
+                "label": {"fr": "Cocktails", "en": "Cocktails"}
+            },
+            "priority": 2
+        },
+        
+        # Spiritueux
+        {
+            "categories": ["rhums", "vodkas", "gins", "tequilas", "whiskies", 
+                          "digestifs", "cognacs_armagnacs"],
+            "button": {
+                "routerLink": "/menus/drinks/6",
+                "label": {"fr": "Spiritueux", "en": "Spirits"}
+            },
+            "priority": 8
         }
     ]
     
-    active_buttons = []
+    # Calculer le nombre d'items pour chaque section
+    suggestions = []
     
     for section_config in sections_config:
-        # Compter le nombre d'articles dans cette section
         total_items = sum(
             len(menu_data.get(cat, [])) 
             for cat in section_config["categories"]
         )
         
-        # Vérifier si la section a assez d'articles
-        min_required = section_config.get("min_items", 1)
-        
-        if total_items >= min_required:
-            active_buttons.append(section_config["button"])
-        
-        # ✅ LIMITE À 3 BOUTONS
-        if len(active_buttons) >= 3:
-            break
+        if total_items > 0:
+            suggestions.append({
+                **section_config["button"],
+                "item_count": total_items,
+                "priority": section_config["priority"]
+            })
     
-    return active_buttons
+    # Trier par priorité
+    suggestions.sort(key=lambda x: x["priority"])
+    
+    return suggestions
 
 def generate_menus_json(menu_data: Dict, restaurant_id: str, item_images: Dict = None) -> Dict:
     """Génère le fichier menus.4.json au format Odoo"""
@@ -663,8 +699,11 @@ async def extract_menu(
         else:
             raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF soit un menu manuel")
         
-        # Retourner uniquement les données extraites pour prévisualisation
-        active_buttons = detect_active_sections(menu_data)
+        # ✅ Détecter TOUTES les sections actives (pas de limite)
+        all_suggestions = detect_active_sections(menu_data)
+        
+        # ✅ Les 3 premiers par défaut
+        default_buttons = all_suggestions[:3]
         return {
             "success": True,
             "data": {
@@ -679,7 +718,8 @@ async def extract_menu(
                     "button_primary_font": color_button_primary_font,
                     "button_menu_block_font": color_button_menu_block_font
                 },
-                "suggested_buttons": active_buttons, 
+                "all_suggestions": all_suggestions,  # ✅ TOUTES les suggestions
+                "default_buttons": default_buttons,   # ✅ Les 3 par défaut
                 "address": {
                     "street": street,
                     "zip_code": zip_code,
