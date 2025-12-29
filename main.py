@@ -322,7 +322,7 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
     
     return backend
 
-def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1, menu_data: Dict = None) -> Dict:
+def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1, menu_data: Dict = None, selected_buttons: List[Dict] = None) -> Dict:
     """Génère le fichier frontend.json (version 1 ou 2)"""
     
     safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
@@ -355,7 +355,6 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
             }
         }
     else:
-        # VERSION 2 avec boutons dynamiques
         frontend = {
             "homeType": "home2",
             "clientMenuType": "clientMenu2",
@@ -380,7 +379,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
                         "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
                     }
                 }],
-                "buttons": [],  # ← Sera rempli dynamiquement
+                "buttons": [],
                 "blocs": []
             },
             "menu": {
@@ -410,110 +409,142 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
                 }
             }
         }
-        # ✅ Ajouter les boutons dynamiques si menu_data est fourni
-        if menu_data:
+        
+        # ✅ Ajouter les boutons sélectionnés
+        if selected_buttons:
+            frontend["home"]["buttons"] = selected_buttons
+        elif menu_data:
             frontend["home"]["buttons"] = detect_active_sections(menu_data)
+        
+        # ✅ NOUVEAU : Déterminer les sections disponibles dans menu
+        has_food = False
+        has_drinks = False
+        
+        food_categories = ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
+                          "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"]
+        drink_categories = ["boissons_soft", "jus", "boissons_chaudes", "bieres_pression", 
+                           "bieres_bouteilles", "vins_blancs_verre", "vins_rouges_verre", 
+                           "vins_roses_verre", "vins_blancs_bouteille", "vins_rouges_bouteille", 
+                           "vins_roses_bouteille", "champagnes_coupe", "champagnes_bouteille", 
+                           "aperitifs", "spritz", "cocktails", "mocktails", "rhums", "vodkas", 
+                           "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"]
+        
+        if menu_data:
+            for cat in food_categories:
+                if menu_data.get(cat) and len(menu_data[cat]) > 0:
+                    has_food = True
+                    break
+            
+            for cat in drink_categories:
+                if menu_data.get(cat) and len(menu_data[cat]) > 0:
+                    has_drinks = True
+                    break
+        
+        # ✅ Construire la section "menu" selon ce qui est disponible
+        menu_section = frontend["menu"]
+        
+        if has_drinks:
+            menu_section["drinks"] = {
+                "title": {"fr": "LES BOISSONS", "en": "DRINKS"},
+                "button": {"fr": "BOISSONS", "en": "DRINKS"}
+            }
+        
+        if has_food:
+            menu_section["sections"] = {
+                "title": {"fr": "LA CARTE", "en": "THE MENU"},
+                "button": {"fr": "LA CARTE", "en": "THE MENU"}
+            }
         
         return frontend
 
 def detect_active_sections(menu_data: Dict) -> List[Dict]:
-    """Détecte TOUTES les sections actives et génère des suggestions (pas de limite ici)"""
+    """Détecte TOUTES les sections actives et génère des suggestions avec les BONS index"""
     
-    # ✅ Configuration complète avec les BONS numéros de routerLink
     sections_config = [
-        # PRIORITÉ 1 : La carte (nourriture)
+        # La carte (nourriture) - PAS un drink
         {
             "categories": ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
                           "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"],
             "button": {
                 "routerLink": "/menus",
                 "label": {"fr": "La carte", "en": "The menu"},
-                "drinkIndex": None  # ✅ NOUVEAU : pas un drink
+                "drinkIndex": None
             },
             "priority": 1
-        },
-        
-        # Boissons froides (softs) - INDEX 0
+        }
+    ]
+    
+    # ✅ DRINKS avec numérotation DYNAMIQUE
+    drink_sections = [
         {
             "categories": ["boissons_soft", "jus"],
             "button": {
-                "routerLink": "/menus/drinks/0",
-                "label": {"fr": "Boissons fraîches", "en": "Cold drinks"},
-                "drinkIndex": 0  # ✅ NOUVEAU
+                "label": {"fr": "Boissons fraîches", "en": "Cold drinks"}
             },
             "priority": 4
         },
-        
-        # Boissons chaudes - INDEX 1
         {
             "categories": ["boissons_chaudes"],
             "button": {
-                "routerLink": "/menus/drinks/1",
-                "label": {"fr": "Boissons chaudes", "en": "Hot drinks"},
-                "drinkIndex": 1  # ✅ NOUVEAU
+                "label": {"fr": "Boissons chaudes", "en": "Hot drinks"}
             },
             "priority": 5
         },
-        
-        # Bières - INDEX 2
         {
             "categories": ["bieres_pression", "bieres_bouteilles"],
             "button": {
-                "routerLink": "/menus/drinks/2",
-                "label": {"fr": "Bières", "en": "Beers"},
-                "drinkIndex": 2  # ✅ NOUVEAU
+                "label": {"fr": "Bières", "en": "Beers"}
             },
             "priority": 6
         },
-        
-        # Vins - INDEX 3
         {
             "categories": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
                           "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
                           "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum"],
             "button": {
-                "routerLink": "/menus/drinks/3",
-                "label": {"fr": "Vins", "en": "Wines"},
-                "drinkIndex": 3  # ✅ NOUVEAU
+                "label": {"fr": "Vins", "en": "Wines"}
             },
             "priority": 3
         },
-        
-        # Champagnes - INDEX 4
         {
             "categories": ["champagnes_coupe", "champagnes_bouteille", "champagnes_magnum"],
             "button": {
-                "routerLink": "/menus/drinks/4",
-                "label": {"fr": "Champagnes", "en": "Champagnes"},
-                "drinkIndex": 4  # ✅ NOUVEAU
+                "label": {"fr": "Champagnes", "en": "Champagnes"}
             },
             "priority": 7
         },
-        
-        # Cocktails & Apéritifs - INDEX 5
         {
             "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
             "button": {
-                "routerLink": "/menus/drinks/5",
-                "label": {"fr": "Cocktails", "en": "Cocktails"},
-                "drinkIndex": 5  # ✅ NOUVEAU
+                "label": {"fr": "Cocktails", "en": "Cocktails"}
             },
             "priority": 2
         },
-        
-        # Spiritueux - INDEX 6
         {
             "categories": ["rhums", "vodkas", "gins", "tequilas", "whiskies", 
                           "digestifs", "cognacs_armagnacs"],
             "button": {
-                "routerLink": "/menus/drinks/6",
-                "label": {"fr": "Spiritueux", "en": "Spirits"},
-                "drinkIndex": 6  # ✅ NOUVEAU
+                "label": {"fr": "Spiritueux", "en": "Spirits"}
             },
             "priority": 8
         }
     ]
     
+    # ✅ Calculer l'index DYNAMIQUE pour chaque section de drinks
+    current_drink_index = 0
+    for drink_section in drink_sections:
+        total_items = sum(
+            len(menu_data.get(cat, [])) 
+            for cat in drink_section["categories"]
+        )
+        
+        if total_items > 0:
+            drink_section["button"]["routerLink"] = f"/menus/drinks/{current_drink_index}"
+            drink_section["button"]["drinkIndex"] = current_drink_index
+            sections_config.append(drink_section)
+            current_drink_index += 1
+    
+    # ✅ Générer les suggestions
     suggestions = []
     
     for section_config in sections_config:
