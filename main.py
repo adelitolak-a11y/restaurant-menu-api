@@ -354,114 +354,110 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
                 }
             }
         }
-    else:
-        frontend = {
-            "homeType": "home2",
-            "clientMenuType": "clientMenu2",
-            "cartType": "cart",
-            "payType": "lyf-prepay",
-            "menuType": "menu2",
-            "drinkMenuType": "drinkMenu2",
-            "identificationType": "ident2",
-            "isIdentificationMandatory": False,
-            "routeAfterIdentification": "pay/thankyou",
-            "foodButtonEnabled": True,
-            "happyHour": {
-                "weekDays": [],
-                "start": 24,
-                "end": 24
-            },
-            "home": {
-                "banners": [{
-                    "src": home_banner_path,
-                    "title": {
-                        "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
-                        "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
-                    }
-                }],
-                "buttons": [],
-                "blocs": []
-            },
-            "menu": {
-                "banner": {
-                    "src": menu_banner_path
+    
+    # ✅ Version 2 - Tout le code est dans le else maintenant
+    frontend = {
+        "homeType": "home2",
+        "clientMenuType": "clientMenu2",
+        "cartType": "cart",
+        "payType": "lyf-prepay",
+        "menuType": "menu2",
+        "drinkMenuType": "drinkMenu2",
+        "identificationType": "ident2",
+        "isIdentificationMandatory": False,
+        "routeAfterIdentification": "pay/thankyou",
+        "foodButtonEnabled": True,
+        "happyHour": {
+            "weekDays": [],
+            "start": 24,
+            "end": 24
+        },
+        "home": {
+            "banners": [{
+                "src": home_banner_path,
+                "title": {
+                    "fr": f"<b>SÉLECTIONNEZ</b>, <b>COMMANDEZ</b>, <b>PAYEZ</b> directement depuis votre smartphone.\n\nBienvenue chez {restaurant_name}",
+                    "en": f"Choose, Order and Pay directly with your smartphone.\n\nWelcome to {restaurant_name}"
                 }
-            },
-            "styles": {
-                "colors": {
-                    "primary": colors.get("primary"),
-                    "accent": colors.get("accent"),
-                    "footer": colors.get("footer"),
-                    "footer_accent": colors.get("footer_accent"),
-                    "footer_font": "#FFFFFF",
-                    "order_page_background": "#E4DFD8",
-                    "order_page_font": "#252525",
-                    "pay_page_background": "#E4DFD8",
-                    "pay_page_font": "#252525",
-                    "form_input_background": "#F5F5F5",
-                    "form_input_font": "#8A8A8A",
-                    "button_accent_background": colors.get("button_accent_bg"),
-                    "button_accent_font": "#E4DFD8",
-                    "button_primary_background": "#E4DFD8",
-                    "button_primary_font": colors.get("button_primary_font"),
-                    "button_menu_block": "#FFFFFF",
-                    "button_menu_block_font": colors.get("button_menu_block_font")
-                }
+            }],
+            "buttons": [],
+            "blocs": []
+        },
+        "menu": {
+            "banner": {
+                "src": menu_banner_path
+            }
+        },
+        "styles": {
+            "colors": {
+                "primary": colors.get("primary"),
+                "accent": colors.get("accent"),
+                "footer": colors.get("footer"),
+                "footer_accent": colors.get("footer_accent"),
+                "footer_font": "#FFFFFF",
+                "order_page_background": "#E4DFD8",
+                "order_page_font": "#252525",
+                "pay_page_background": "#E4DFD8",
+                "pay_page_font": "#252525",
+                "form_input_background": "#F5F5F5",
+                "form_input_font": "#8A8A8A",
+                "button_accent_background": colors.get("button_accent_bg"),
+                "button_accent_font": "#E4DFD8",
+                "button_primary_background": "#E4DFD8",
+                "button_primary_font": colors.get("button_primary_font"),
+                "button_menu_block": "#FFFFFF",
+                "button_menu_block_font": colors.get("button_menu_block_font")
             }
         }
+    }
+    
+    # ✅ Ajouter les boutons sélectionnés
+    if selected_buttons:
+        frontend["home"]["buttons"] = selected_buttons
+    elif menu_data:
+        frontend["home"]["buttons"] = detect_active_sections(menu_data)
+    
+    # ✅ Déterminer les sections disponibles dans menu
+    has_food = False
+    has_drinks = False
+    
+    food_categories = ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
+                      "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"]
+    drink_categories = ["boissons_soft", "jus", "boissons_chaudes", "bieres_pression", 
+                       "bieres_bouteilles", "vins_blancs_verre", "vins_rouges_verre", 
+                       "vins_roses_verre", "vins_blancs_bouteille", "vins_rouges_bouteille", 
+                       "vins_roses_bouteille", "champagnes_coupe", "champagnes_bouteille", 
+                       "aperitifs", "spritz", "cocktails", "mocktails", "rhums", "vodkas", 
+                       "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs",
+                       "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum",
+                       "champagnes_magnum"]
+    
+    # ✅ Vérifier uniquement si menu_data existe
+    if menu_data:
+        for cat in food_categories:
+            if menu_data.get(cat) and len(menu_data[cat]) > 0:
+                has_food = True
+                break
         
-        # ✅ Ajouter les boutons sélectionnés
-        if selected_buttons:
-            frontend["home"]["buttons"] = selected_buttons
-        elif menu_data:
-            frontend["home"]["buttons"] = detect_active_sections(menu_data)
-        
-        # ✅ NOUVEAU : Déterminer les sections disponibles dans menu
-        has_food = False
-        has_drinks = False
-        
-        food_categories = ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
-                          "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"]
-        drink_categories = ["boissons_soft", "jus", "boissons_chaudes", "bieres_pression", 
-                           "bieres_bouteilles", "vins_blancs_verre", "vins_rouges_verre", 
-                           "vins_roses_verre", "vins_blancs_bouteille", "vins_rouges_bouteille", 
-                           "vins_roses_bouteille", "champagnes_coupe", "champagnes_bouteille", 
-                           "aperitifs", "spritz", "cocktails", "mocktails", "rhums", "vodkas", 
-                           "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs",
-                           "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum",
-                           "champagnes_magnum"]
-        
-        if menu_data:
-            for cat in food_categories:
-                if menu_data.get(cat) and len(menu_data[cat]) > 0:
-                    has_food = True
-                    break
-            
-            for cat in drink_categories:
-                if menu_data.get(cat) and len(menu_data[cat]) > 0:
-                    has_drinks = True
-                    break
-        
-        # ✅ Construire la section "menu" selon ce qui est disponible
-        menu_section = frontend["menu"]
-        
-        # ✅ LOGIQUE SIMPLIFIÉE : Ajouter uniquement ce qui existe
-        if has_drinks:
-            menu_section["drinks"] = {
-                "title": {"fr": "LES BOISSONS", "en": "DRINKS"},
-                "button": {"fr": "BOISSONS", "en": "DRINKS"}
-            }
-        
-        if has_food:
-            menu_section["sections"] = {
-                "title": {"fr": "LA CARTE", "en": "THE MENU"},
-                "button": {"fr": "LA CARTE", "en": "THE MENU"}
-            }
-        
-        # ✅ NE JAMAIS ajouter "menus" (formules) automatiquement
-        # Si tu veux les formules, il faudra les ajouter manuellement plus tard
-        
-        return frontend
+        for cat in drink_categories:
+            if menu_data.get(cat) and len(menu_data[cat]) > 0:
+                has_drinks = True
+                break
+    
+    # ✅ Construire la section "menu" selon ce qui est disponible
+    if has_drinks:
+        frontend["menu"]["drinks"] = {
+            "title": {"fr": "LES BOISSONS", "en": "DRINKS"},
+            "button": {"fr": "BOISSONS", "en": "DRINKS"}
+        }
+    
+    if has_food:
+        frontend["menu"]["sections"] = {
+            "title": {"fr": "LA CARTE", "en": "THE MENU"},
+            "button": {"fr": "LA CARTE", "en": "THE MENU"}
+        }
+    
+    return frontend
 
 def detect_active_sections(menu_data: Dict) -> List[Dict]:
     """Détecte TOUTES les sections actives et génère des suggestions avec les BONS index"""
