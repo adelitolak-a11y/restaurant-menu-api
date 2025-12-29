@@ -417,11 +417,12 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
         return frontend
 
 def detect_active_sections(menu_data: Dict) -> List[Dict]:
-    """Détecte les sections actives du menu et génère les boutons appropriés"""
+    """Détecte les sections actives du menu et génère les boutons appropriés (max 3)"""
     
-    sections_config = {
-        # Nourriture
-        "sections": {
+    # ✅ ORDRE DE PRIORITÉ : les plus importants en premier
+    sections_config = [
+        # PRIORITÉ 1 : La carte (nourriture)
+        {
             "categories": ["entrees", "salades", "plats", "burgers", "brasserie", "desserts", 
                           "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"],
             "button": {
@@ -430,84 +431,63 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
             }
         },
         
-        # Boissons chaudes
-        "hot_drinks": {
-            "categories": ["boissons_chaudes"],
-            "button": {
-                "routerLink": "/menus/drinks/1",
-                "label": {"fr": "Boissons chaudes", "en": "Hot drinks"}
-            }
-        },
-        
-        # Boissons froides
-        "cold_drinks": {
-            "categories": ["boissons_soft", "jus"],
+        # PRIORITÉ 2 : Boissons (regroupe TOUT)
+        {
+            "categories": ["boissons_soft", "jus", "boissons_chaudes", 
+                          "bieres_pression", "bieres_bouteilles",
+                          "vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
+                          "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
+                          "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum",
+                          "champagnes_coupe", "champagnes_bouteille", "champagnes_magnum",
+                          "aperitifs", "spritz", "cocktails", "mocktails",
+                          "rhums", "vodkas", "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"],
             "button": {
                 "routerLink": "/menus/drinks/0",
-                "label": {"fr": "Boissons fraîches", "en": "Cold drinks"}
+                "label": {"fr": "Boissons", "en": "Drinks"}
             }
         },
         
-        # Bières
-        "beers": {
-            "categories": ["bieres_pression", "bieres_bouteilles"],
+        # PRIORITÉ 3 : Cocktails (si beaucoup de cocktails)
+        {
+            "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
             "button": {
-                "routerLink": "/menus/drinks/2",
-                "label": {"fr": "Bières", "en": "Beers"}
-            }
+                "routerLink": "/menus/drinks/5",
+                "label": {"fr": "Cocktails", "en": "Cocktails"}
+            },
+            "min_items": 8  # ✅ Seulement si au moins 8 cocktails
         },
         
-        # Vins
-        "wines": {
+        # PRIORITÉ 4 : Vins (si beaucoup de vins)
+        {
             "categories": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
                           "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
                           "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum"],
             "button": {
                 "routerLink": "/menus/drinks/3",
                 "label": {"fr": "Vins", "en": "Wines"}
-            }
-        },
-        
-        # Champagnes
-        "champagnes": {
-            "categories": ["champagnes_coupe", "champagnes_bouteille", "champagnes_magnum"],
-            "button": {
-                "routerLink": "/menus/drinks/4",
-                "label": {"fr": "Champagnes", "en": "Champagnes"}
-            }
-        },
-        
-        # Cocktails & Apéritifs
-        "cocktails": {
-            "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
-            "button": {
-                "routerLink": "/menus/drinks/5",
-                "label": {"fr": "Cocktails", "en": "Cocktails"}
-            }
-        },
-        
-        # Spiritueux
-        "spirits": {
-            "categories": ["rhums", "vodkas", "gins", "tequilas", "whiskies", 
-                          "digestifs", "cognacs_armagnacs"],
-            "button": {
-                "routerLink": "/menus/drinks/6",
-                "label": {"fr": "Spiritueux", "en": "Spirits"}
-            }
+            },
+            "min_items": 10  # ✅ Seulement si au moins 10 vins
         }
-    }
+    ]
     
     active_buttons = []
     
-    for section_key, section_config in sections_config.items():
-        # Vérifier si au moins une catégorie de cette section contient des articles
-        has_items = any(
-            menu_data.get(cat) and len(menu_data.get(cat, [])) > 0 
+    for section_config in sections_config:
+        # Compter le nombre d'articles dans cette section
+        total_items = sum(
+            len(menu_data.get(cat, [])) 
             for cat in section_config["categories"]
         )
         
-        if has_items:
+        # Vérifier si la section a assez d'articles
+        min_required = section_config.get("min_items", 1)
+        
+        if total_items >= min_required:
             active_buttons.append(section_config["button"])
+        
+        # ✅ LIMITE À 3 BOUTONS
+        if len(active_buttons) >= 3:
+            break
     
     return active_buttons
 
@@ -697,9 +677,9 @@ async def extract_menu(
                     "footer_accent": color_footer_accent,
                     "button_accent_background": color_button_accent_bg,
                     "button_primary_font": color_button_primary_font,
-                    "button_menu_block_font": color_button_menu_block_font,
-                    "suggested_buttons": active_buttons  # ← NOUVEAU
+                    "button_menu_block_font": color_button_menu_block_font
                 },
+                "suggested_buttons": active_buttons, 
                 "address": {
                     "street": street,
                     "zip_code": zip_code,
@@ -813,10 +793,10 @@ async def generate_menu(
         backend_json = generate_backend_json(restaurant_name, qr_mode, address, version=1)
         backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
         menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)
-        frontend_json = generate_frontend_json(restaurant_name, colors, version=1, menu_data)
+        frontend_json = generate_frontend_json(restaurant_name, colors, 1, menu_data)
         
         # ✅ Version 2 avec boutons personnalisés
-        frontend_2_json = generate_frontend_json(restaurant_name, colors, version=2, menu_data)
+        frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data)
         if buttons:
             frontend_2_json["home"]["buttons"] = buttons
         
