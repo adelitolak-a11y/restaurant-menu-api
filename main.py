@@ -427,86 +427,93 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                           "planches", "tapas", "pinsa_pizza", "pates", "accompagnements"],
             "button": {
                 "routerLink": "/menus",
-                "label": {"fr": "La carte", "en": "The menu"}
+                "label": {"fr": "La carte", "en": "The menu"},
+                "drinkIndex": None  # ✅ NOUVEAU : pas un drink
             },
             "priority": 1
         },
         
-        # Boissons chaudes
-        {
-            "categories": ["boissons_chaudes"],
-            "button": {
-                "routerLink": "/menus/drinks/1",
-                "label": {"fr": "Boissons chaudes", "en": "Hot drinks"}
-            },
-            "priority": 5
-        },
-        
-        # Boissons froides (softs)
+        # Boissons froides (softs) - INDEX 0
         {
             "categories": ["boissons_soft", "jus"],
             "button": {
                 "routerLink": "/menus/drinks/0",
-                "label": {"fr": "Boissons fraîches", "en": "Cold drinks"}
+                "label": {"fr": "Boissons fraîches", "en": "Cold drinks"},
+                "drinkIndex": 0  # ✅ NOUVEAU
             },
             "priority": 4
         },
         
-        # Bières
+        # Boissons chaudes - INDEX 1
+        {
+            "categories": ["boissons_chaudes"],
+            "button": {
+                "routerLink": "/menus/drinks/1",
+                "label": {"fr": "Boissons chaudes", "en": "Hot drinks"},
+                "drinkIndex": 1  # ✅ NOUVEAU
+            },
+            "priority": 5
+        },
+        
+        # Bières - INDEX 2
         {
             "categories": ["bieres_pression", "bieres_bouteilles"],
             "button": {
                 "routerLink": "/menus/drinks/2",
-                "label": {"fr": "Bières", "en": "Beers"}
+                "label": {"fr": "Bières", "en": "Beers"},
+                "drinkIndex": 2  # ✅ NOUVEAU
             },
             "priority": 6
         },
         
-        # Vins
+        # Vins - INDEX 3
         {
             "categories": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
                           "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
                           "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum"],
             "button": {
                 "routerLink": "/menus/drinks/3",
-                "label": {"fr": "Vins", "en": "Wines"}
+                "label": {"fr": "Vins", "en": "Wines"},
+                "drinkIndex": 3  # ✅ NOUVEAU
             },
             "priority": 3
         },
         
-        # Champagnes
+        # Champagnes - INDEX 4
         {
             "categories": ["champagnes_coupe", "champagnes_bouteille", "champagnes_magnum"],
             "button": {
                 "routerLink": "/menus/drinks/4",
-                "label": {"fr": "Champagnes", "en": "Champagnes"}
+                "label": {"fr": "Champagnes", "en": "Champagnes"},
+                "drinkIndex": 4  # ✅ NOUVEAU
             },
             "priority": 7
         },
         
-        # Cocktails & Apéritifs
+        # Cocktails & Apéritifs - INDEX 5
         {
             "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
             "button": {
-                "routerLink": "/menus/drinks/5",  # ✅ CORRIGÉ : était /drinks/3 avant
-                "label": {"fr": "Cocktails", "en": "Cocktails"}
+                "routerLink": "/menus/drinks/5",
+                "label": {"fr": "Cocktails", "en": "Cocktails"},
+                "drinkIndex": 5  # ✅ NOUVEAU
             },
             "priority": 2
         },
         
-        # Spiritueux
+        # Spiritueux - INDEX 6
         {
             "categories": ["rhums", "vodkas", "gins", "tequilas", "whiskies", 
                           "digestifs", "cognacs_armagnacs"],
             "button": {
                 "routerLink": "/menus/drinks/6",
-                "label": {"fr": "Spiritueux", "en": "Spirits"}
+                "label": {"fr": "Spiritueux", "en": "Spirits"},
+                "drinkIndex": 6  # ✅ NOUVEAU
             },
             "priority": 8
         }
     ]
     
-    # Calculer le nombre d'items pour chaque section
     suggestions = []
     
     for section_config in sections_config:
@@ -522,7 +529,6 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "priority": section_config["priority"]
             })
     
-    # Trier par priorité
     suggestions.sort(key=lambda x: x["priority"])
     
     return suggestions
