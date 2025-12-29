@@ -410,13 +410,13 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
             }
         }
         
-        # ✅ Ajouter les boutons sélectionnés
+        # ✅ Ajouter les boutons (selected_buttons a déjà les bons index)
         if selected_buttons:
             frontend["home"]["buttons"] = selected_buttons
         elif menu_data:
             frontend["home"]["buttons"] = detect_active_sections(menu_data)
         
-        # ✅ NOUVEAU : Déterminer les sections disponibles dans menu
+        # ✅ Déterminer les sections disponibles dans menu
         has_food = False
         has_drinks = False
         
@@ -443,6 +443,7 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
         # ✅ Construire la section "menu" selon ce qui est disponible
         menu_section = frontend["menu"]
         
+        # ✅ AJOUT CONDITIONNEL : ajoute drinks OU sections selon disponibilité
         if has_drinks:
             menu_section["drinks"] = {
                 "title": {"fr": "LES BOISSONS", "en": "DRINKS"},
@@ -876,6 +877,40 @@ async def generate_menu(
         frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data)
         if buttons:
             frontend_2_json["home"]["buttons"] = buttons
+        buttons_with_correct_index = []
+        if selected_buttons:
+            try:
+                raw_buttons = json.loads(selected_buttons)
+                
+                # ✅ Recalculer les index dynamiques pour les drinks
+                all_suggestions = detect_active_sections(menu_data)
+                
+                # Créer un mapping routerLink -> drinkIndex correct
+                index_mapping = {}
+                for suggestion in all_suggestions:
+                    if suggestion.get("drinkIndex") is not None:
+                        index_mapping[suggestion["routerLink"]] = suggestion["drinkIndex"]
+                
+                # Appliquer les bons index aux boutons sélectionnés
+                for btn in raw_buttons:
+                    corrected_btn = {
+                        "routerLink": btn["routerLink"],
+                        "label": btn["label"]
+                    }
+                    
+                    # Si c'est un drink, utiliser le bon index
+                    if btn["routerLink"] in index_mapping:
+                        corrected_btn["drinkIndex"] = index_mapping[btn["routerLink"]]
+                    
+                    buttons_with_correct_index.append(corrected_btn)
+                    
+            except:
+                buttons_with_correct_index = []
+        else:
+            buttons_with_correct_index = []
+
+        # Générer frontend_2 avec les boutons corrigés
+        frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data, buttons_with_correct_index)
         
         menus_2_json = menus_json.copy()
         
