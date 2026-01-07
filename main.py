@@ -10,8 +10,6 @@ from dotenv import load_dotenv
 import paramiko
 from PIL import Image
 import io
-import pytesseract
-from pdf2image import convert_from_bytes
 
 load_dotenv()
 
@@ -36,29 +34,6 @@ ODOO_URL = os.getenv("ODOO_URL", "https://ton-instance.odoo.com")
 ODOO_DB = os.getenv("ODOO_DB", "nom_base")
 ODOO_USERNAME = os.getenv("ODOO_USERNAME", "admin")
 ODOO_PASSWORD = os.getenv("ODOO_PASSWORD", "")
-
-def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extrait le texte d'un PDF avec PyMuPDF"""
-    try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        text = ""
-        for page in doc:
-            text += page.get_text()
-        doc.close()
-        
-        # Si pas de texte, c'est un PDF image
-        if len(text.strip()) < 50:
-            raise HTTPException(
-                status_code=400, 
-                detail="⚠️ Ce PDF est une image scannée. Veuillez convertir votre PDF en format texte ou saisir le menu manuellement."
-            )
-        
-        return text
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erreur lecture PDF: {str(e)}")
 
 def classify_menu_with_groq(text: str) -> Dict:
     """Utilise Groq pour classifier le menu complet"""
@@ -709,19 +684,15 @@ async def extract_menu(
     zip_code: str = Form(""),
     city: str = Form(""),
     country: str = Form("France"),
-    home_banner: UploadFile = File(None),  # ✅ NOUVEAU
-    menu_banner: UploadFile = File(None),  # ✅ NOUVEAU
     menu_file: UploadFile = File(None),
     manual_menu: str = Form(None)
 ):
-    
-    """Extrait le menu pour prévisualisation (sans générer les JSON finaux)"""
+    """Extrait le menu pour prévisualisation"""
     try:
-        # 1. Obtenir les données du menu
+        # Obtenir les données du menu
         if manual_menu:
             try:
                 menu_data = json.loads(manual_menu)
-                print(f"✅ Menu manuel reçu avec {sum(len(v) for v in menu_data.values())} articles")
             except json.JSONDecodeError as e:
                 raise HTTPException(status_code=400, detail=f"JSON manuel invalide: {str(e)}")
         
@@ -730,15 +701,27 @@ async def extract_menu(
                 raise HTTPException(status_code=400, detail="Le fichier doit être un PDF")
             
             pdf_content = await menu_file.read()
-            text = extract_text_from_pdf(pdf_content)
             
-            if not text.strip():
-                raise HTTPException(status_code=400, detail="Impossible d'extraire du texte du PDF")
+            # Extraire avec PyMuPDF
+            try:
+                doc = fitz.open(stream=pdf_content, filetype="pdf")
+                text = ""
+                for page in doc:
+                    text += page.get_text()
+                doc.close()
+                
+                if len(text.strip()) < 50:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="⚠️ Ce PDF est une image scannée. Veuillez convertir votre PDF en format texte."
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Erreur lecture PDF: {str(e)}")
             
             menu_data = classify_menu_with_groq(text)
-            menu_data = clean_empty_categories(menu_data)  # ← AJOUTE cette ligne
-            
-            print(f"✅ Menu extrait du PDF avec {sum(len(v) for v in menu_data.values())} articles")
+            menu_data = clean_empty_categories(menu_data)
         
         else:
             raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF soit un menu manuel")
@@ -918,113 +901,6 @@ def health_check():
         "groq": "✅ OK" if GROQ_API_KEY else "❌ Non configuré",
         "version": "3.0"
     }
-
-# Ajoute cet endpoint dans ton API pour tester
-
-@app.post("/test-sftp-connection")
-async def test_sftp_connection(ftp_password: str = Form(...)):
-    """Endpoint de test pour diagnostiquer la connexion SFTP"""
-    results = {
-        "tests": [],
-        "success": False
-    }
-    
-    try:
-        # Test 1: Paramiko installé ?
-        results["tests"].append({"step": "Import paramiko", "status": "testing"})
-        import paramiko
-        results["tests"][-1]["status"] = "✅ OK"
-        
-        # Test 2: Connexion SSH
-        results["tests"].append({"step": "Connexion SSH", "status": "testing"})
-        SFTP_HOST = "178.32.198.72"
-        SFTP_PORT = 2266
-        SFTP_USER = "snadmin"
-        
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        
-        ssh.connect(
-            hostname=SFTP_HOST,
-            port=SFTP_PORT,
-            username=SFTP_USER,
-            password=ftp_password,
-            look_for_keys=False,
-            allow_agent=False,
-            timeout=30
-        )
-        results["tests"][-1]["status"] = "✅ OK"
-        
-        # Test 3: Ouverture SFTP
-        results["tests"].append({"step": "Ouverture session SFTP", "status": "testing"})
-        sftp = ssh.open_sftp()
-        results["tests"][-1]["status"] = "✅ OK"
-        
-        # Test 4: Navigation vers le dossier
-        results["tests"].append({"step": "Navigation vers dossier", "status": "testing"})
-        TARGET_PATH = "/var/www/pleazze/data/config/abdel"
-        sftp.chdir(TARGET_PATH)
-        results["tests"][-1]["status"] = "✅ OK"
-        results["tests"][-1]["details"] = f"Dossier: {sftp.getcwd()}"
-        
-        # Test 5: Liste des fichiers
-        results["tests"].append({"step": "Liste des fichiers", "status": "testing"})
-        files = sftp.listdir()
-        results["tests"][-1]["status"] = "✅ OK"
-        results["tests"][-1]["details"] = f"{len(files)} fichiers trouvés"
-        
-        # Test 6: Test d'écriture
-        results["tests"].append({"step": "Test d'écriture", "status": "testing"})
-        test_content = "Test de connexion SFTP depuis Render"
-        with sftp.file('test_connection.txt', 'w') as f:
-            f.write(test_content)
-        results["tests"][-1]["status"] = "✅ OK"
-        
-        sftp.close()
-        ssh.close()
-        
-        results["success"] = True
-        results["message"] = "✅ Tous les tests sont passés ! La connexion SFTP fonctionne."
-        
-    except ImportError as e:
-        results["tests"].append({
-            "step": "Import paramiko",
-            "status": "❌ ERREUR",
-            "error": f"Paramiko n'est pas installé: {str(e)}"
-        })
-        results["message"] = "❌ Paramiko n'est pas installé dans requirements.txt"
-        
-    except paramiko.AuthenticationException:
-        if results["tests"]:
-            results["tests"][-1]["status"] = "❌ ERREUR"
-            results["tests"][-1]["error"] = "Mot de passe incorrect"
-        results["message"] = "❌ Authentification échouée - Mot de passe incorrect"
-        
-    except Exception as e:
-        if results["tests"]:
-            results["tests"][-1]["status"] = "❌ ERREUR"
-            results["tests"][-1]["error"] = str(e)
-            results["tests"][-1]["type"] = type(e).__name__
-        results["message"] = f"❌ Erreur: {type(e).__name__}: {str(e)}"
-    
-    return results
-
-@app.get("/test-network")
-async def test_network():
-    import socket
-    try:
-        # Test si Render peut atteindre ton serveur
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)
-        result = sock.connect_ex(("178.32.198.72", 2266))
-        sock.close()
-        
-        if result == 0:
-            return {"status": "✅ Port 2266 accessible depuis Render"}
-        else:
-            return {"status": f"❌ Port 2266 non accessible (code: {result})"}
-    except Exception as e:
-        return {"status": f"❌ Erreur: {str(e)}"}
 
 @app.post("/upload-item-images")
 async def upload_item_images(
@@ -1279,82 +1155,6 @@ async def upload_to_server(
         }
     except Exception as e:
         return {"success": False, "message": f"Erreur SFTP: {str(e)}"}
-    
-
-@app.post("/verify-uploaded-files")
-async def verify_uploaded_files(
-    restaurant_name: str = Form(...),
-    ftp_password: str = Form(...)
-):
-    """Vérifie uniquement que les images sont bien uploadées"""
-    try:
-        import paramiko
-        
-        SFTP_HOST = "178.32.198.72"
-        SFTP_USER = "snadmin"
-        
-        # ✅ Connexion sur port 22 pour vérifier les images
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(
-            hostname=SFTP_HOST, 
-            port=22,  # ✅ Port 22
-            username=SFTP_USER, 
-            password=ftp_password, 
-            timeout=30,
-            look_for_keys=False,
-            allow_agent=False
-        )
-        
-        sftp = ssh.open_sftp()
-        
-        # ✅ Nouveau chemin
-        IMAGES_PATH = "/var/www/pleazze/static/adel"
-        safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
-        
-        results = {
-            "success": True,
-            "files_found": [],
-            "files_missing": [],
-            "file_details": [],
-            "urls": []
-        }
-        
-        # Vérifier home-banner
-        home_banner_file = f'home-banner-{safe_restaurant_name}.png'
-        try:
-            file_stat = sftp.stat(f'{IMAGES_PATH}/{home_banner_file}')
-            results["files_found"].append(home_banner_file)
-            results["file_details"].append({
-                "name": home_banner_file,
-                "size": file_stat.st_size,
-                "permissions": oct(file_stat.st_mode)[-3:]
-            })
-            results["urls"].append(f"https://preprod-pleazze.stepnet.fr/static/adel/{home_banner_file}")
-        except FileNotFoundError:
-            results["files_missing"].append(home_banner_file)
-        
-        # Vérifier menu-banner
-        menu_banner_file = f'menu-banner-{safe_restaurant_name}.png'
-        try:
-            file_stat = sftp.stat(f'{IMAGES_PATH}/{menu_banner_file}')
-            results["files_found"].append(menu_banner_file)
-            results["file_details"].append({
-                "name": menu_banner_file,
-                "size": file_stat.st_size,
-                "permissions": oct(file_stat.st_mode)[-3:]
-            })
-            results["urls"].append(f"https://preprod-pleazze.stepnet.fr/static/adel/{menu_banner_file}")
-        except FileNotFoundError:
-            results["files_missing"].append(menu_banner_file)
-        
-        sftp.close()
-        ssh.close()
-        
-        return results
-        
-    except Exception as e:
-        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
