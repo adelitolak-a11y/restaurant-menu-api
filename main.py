@@ -1003,7 +1003,9 @@ async def upload_to_server(
     menus_2_json: str = Form(...),
     ftp_password: str = Form(...),
     home_banner: UploadFile = File(None),
-    menu_banner: UploadFile = File(None)
+    menu_banner: UploadFile = File(None),
+    home_banner_url: str = Form(None),  # ✅ NOUVEAU
+    menu_banner_url: str = Form(None)   # ✅ NOUVEAU
 ):
     """Upload les fichiers JSON + images sur le serveur via SFTP"""
     
@@ -1029,7 +1031,7 @@ async def upload_to_server(
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(
             hostname=SFTP_HOST, 
-            port=2266,  # Port 2266 pour les JSON
+            port=2266,
             username=SFTP_USER, 
             password=ftp_password, 
             timeout=30,
@@ -1084,12 +1086,12 @@ async def upload_to_server(
         # ✅ CONNEXION 2 : Port 22 pour les images
         uploaded_images = []
         
-        if home_banner or menu_banner:
+        if home_banner or menu_banner or home_banner_url or menu_banner_url:
             ssh_images = paramiko.SSHClient()
             ssh_images.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh_images.connect(
                 hostname=SFTP_HOST,
-                port=22,  # ✅ Port 22 pour les images
+                port=22,
                 username=SFTP_USER,
                 password=ftp_password,
                 timeout=30,
@@ -1099,7 +1101,6 @@ async def upload_to_server(
             
             sftp_images = ssh_images.open_sftp()
             
-            # ✅ Nouveau chemin selon Youri
             IMAGES_PATH = "/var/www/pleazze/static/adel"
             
             # Créer le dossier images
@@ -1119,7 +1120,9 @@ async def upload_to_server(
             
             safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
             
+            # ✅ HOME BANNER
             if home_banner:
+                # Upload d'une image personnalisée
                 png_content = convert_to_png(home_banner.file)
                 filename = f'home-banner-{safe_restaurant_name}.png'
                 file_path = f'{IMAGES_PATH}/{filename}'
@@ -1129,8 +1132,27 @@ async def upload_to_server(
                 
                 sftp_images.chmod(file_path, 0o644)
                 uploaded_images.append(filename)
+            elif home_banner_url:
+                # ✅ Copier l'image par défaut
+                source_filename = home_banner_url.split('/')[-1]
+                target_filename = f'home-banner-{safe_restaurant_name}.png'
+                source_path = f'/var/www/pleazze/static/adel/defaults/{source_filename}'
+                target_path = f'{IMAGES_PATH}/{target_filename}'
+                
+                try:
+                    # Copier directement sur le serveur
+                    with sftp_images.file(source_path, 'rb') as source:
+                        with sftp_images.file(target_path, 'wb') as target:
+                            target.write(source.read())
+                    
+                    sftp_images.chmod(target_path, 0o644)
+                    uploaded_images.append(f"{target_filename} (copié depuis defaults)")
+                except Exception as e:
+                    print(f"⚠️ Erreur copie home banner: {e}")
             
+            # ✅ MENU BANNER
             if menu_banner:
+                # Upload d'une image personnalisée
                 png_content = convert_to_png(menu_banner.file)
                 filename = f'menu-banner-{safe_restaurant_name}.png'
                 file_path = f'{IMAGES_PATH}/{filename}'
@@ -1140,6 +1162,23 @@ async def upload_to_server(
                 
                 sftp_images.chmod(file_path, 0o644)
                 uploaded_images.append(filename)
+            elif menu_banner_url:
+                # ✅ Copier l'image par défaut
+                source_filename = menu_banner_url.split('/')[-1]
+                target_filename = f'menu-banner-{safe_restaurant_name}.png'
+                source_path = f'/var/www/pleazze/static/adel/defaults/{source_filename}'
+                target_path = f'{IMAGES_PATH}/{target_filename}'
+                
+                try:
+                    # Copier directement sur le serveur
+                    with sftp_images.file(source_path, 'rb') as source:
+                        with sftp_images.file(target_path, 'wb') as target:
+                            target.write(source.read())
+                    
+                    sftp_images.chmod(target_path, 0o644)
+                    uploaded_images.append(f"{target_filename} (copié depuis defaults)")
+                except Exception as e:
+                    print(f"⚠️ Erreur copie menu banner: {e}")
             
             sftp_images.close()
             ssh_images.close()
