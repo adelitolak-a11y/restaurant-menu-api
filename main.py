@@ -1194,6 +1194,38 @@ async def upload_to_server(
         }
     except Exception as e:
         return {"success": False, "message": f"Erreur SFTP: {str(e)}"}
+    
+
+@app.post("/submit-contact")
+async def submit_contact(contact_data: dict):
+    """Reçoit et stocke les demandes de contact"""
+    try:
+        import json
+        from datetime import datetime
+        
+        # Créer un dossier pour les contacts si nécessaire
+        contacts_dir = "contacts"
+        os.makedirs(contacts_dir, exist_ok=True)
+        
+        # Nom du fichier avec timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{contacts_dir}/contact_{timestamp}.json"
+        
+        # Sauvegarder
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(contact_data, f, indent=2, ensure_ascii=False)
+        
+        # TODO: Envoyer un email de notification ici
+        # send_email_notification(contact_data)
+        
+        return {
+            "success": True,
+            "message": "Demande de contact enregistrée avec succès",
+            "contact_id": timestamp
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
