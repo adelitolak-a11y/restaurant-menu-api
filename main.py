@@ -694,6 +694,92 @@ def home():
         }
     }
 
+
+@app.post("/reconcile-drink-indexes")
+async def reconcile_drink_indexes(
+    validated_menu: str = Form(...),
+    selected_buttons: str = Form(...)
+):
+    """Réconcilie les drinkIndex avec l'ordre RÉEL des catégories dans le menu final"""
+    try:
+        menu_data = json.loads(validated_menu)
+        buttons = json.loads(selected_buttons)
+        
+        # ✅ Calculer l'ordre RÉEL des drinks EXACTEMENT comme dans generate_menus_json
+        drink_categories_order = [
+            "boissons_soft", "jus", "boissons_chaudes",
+            "bieres_pression", "bieres_bouteilles",
+            "vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
+            "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
+            "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum",
+            "champagnes_coupe", "champagnes_bouteille", "champagnes_magnum",
+            "aperitifs", "spritz", "cocktails", "mocktails",
+            "rhums", "vodkas", "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"
+        ]
+        
+        # Créer le mapping catégorie -> index RÉEL
+        category_to_real_index = {}
+        current_drink_index = 0
+        
+        for category in drink_categories_order:
+            if menu_data.get(category) and len(menu_data[category]) > 0:
+                category_to_real_index[category] = current_drink_index
+                current_drink_index += 1
+        
+        print(f"📍 Mapping catégorie -> index réel: {category_to_real_index}")
+        
+        # ✅ Mapping des sections vers leurs catégories principales
+        section_to_categories = {
+            "Boissons fraîches": ["boissons_soft", "jus"],
+            "Cold drinks": ["boissons_soft", "jus"],
+            "Boissons chaudes": ["boissons_chaudes"],
+            "Hot drinks": ["boissons_chaudes"],
+            "Bières": ["bieres_pression", "bieres_bouteilles"],
+            "Beers": ["bieres_pression", "bieres_bouteilles"],
+            "Vins": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
+                     "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
+                     "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum"],
+            "Wines": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
+                      "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
+                      "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum"],
+            "Champagnes": ["champagnes_coupe", "champagnes_bouteille", "champagnes_magnum"],
+            "Cocktails": ["cocktails", "mocktails", "aperitifs", "spritz"],
+            "Spiritueux": ["rhums", "vodkas", "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"],
+            "Spirits": ["rhums", "vodkas", "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"]
+        }
+        
+        # ✅ Mettre à jour les drinkIndex pour chaque bouton
+        reconciled_buttons = []
+        
+        for button in buttons:
+            if "drinkIndex" in button:
+                # Trouver la première catégorie active pour cette section
+                label = button["label"]["fr"]
+                categories = section_to_categories.get(label, [])
+                
+                first_active_category = None
+                for cat in categories:
+                    if cat in category_to_real_index:
+                        first_active_category = cat
+                        break
+                
+                if first_active_category:
+                    real_index = category_to_real_index[first_active_category]
+                    button["drinkIndex"] = real_index
+                    button["routerLink"] = f"/menus/drinks/{real_index}"
+                    print(f"✅ Bouton '{label}' -> index {real_index} (catégorie: {first_active_category})")
+            
+            reconciled_buttons.append(button)
+        
+        return {
+            "success": True,
+            "reconciled_buttons": reconciled_buttons,
+            "category_mapping": category_to_real_index
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur réconciliation: {str(e)}")
+
 @app.post("/extract-menu")
 async def extract_menu(
     restaurant_name: str = Form(...),
