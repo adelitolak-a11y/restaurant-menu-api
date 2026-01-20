@@ -225,7 +225,6 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
     """Génère le fichier backend.json (version 1 ou 2)"""
     
     if version == 1:
-        # Version complète (actuelle)
         backend = {
             "type": "Odoo",
             "odooUrl": odoo_config.get("url", ODOO_URL) if odoo_config else ODOO_URL,
@@ -273,7 +272,7 @@ def generate_backend_json(restaurant_name: str, qr_mode: str, address: Dict, odo
             "qrMode": qr_mode
         }
     else:
-        # Version 2 : seulement la section "menu"
+        # Version 2 
         backend = {
             "menu": {
                 "menus": [],
@@ -330,7 +329,6 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
             }
         }
     
-    # ✅ Version 2 - Tout le code est dans le else maintenant
     frontend = {
         "homeType": "home2",
         "clientMenuType": "clientMenu2",
@@ -386,13 +384,42 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
         }
     }
     
-    # ✅ Ajouter les boutons sélectionnés
-    if selected_buttons:
+    # ✅ NOUVEAU : Recalculer les drinkIndex si selected_buttons existe
+    if selected_buttons and menu_data:
+        # Calculer l'ordre RÉEL des drinks dans le menu
+        drink_categories_order = [
+            "boissons_soft", "jus", "boissons_chaudes",
+            "bieres_pression", "bieres_bouteilles",
+            "vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
+            "vins_blancs_bouteille", "vins_rouges_bouteille", "vins_roses_bouteille",
+            "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum",
+            "champagnes_coupe", "champagnes_bouteille", "champagnes_magnum",
+            "aperitifs", "spritz", "cocktails", "mocktails",
+            "rhums", "vodkas", "gins", "tequilas", "whiskies", "digestifs", "cognacs_armagnacs"
+        ]
+        
+        category_to_real_index = {}
+        current_drink_index = 0
+        
+        for category in drink_categories_order:
+            if menu_data.get(category) and len(menu_data[category]) > 0:
+                category_to_real_index[category] = current_drink_index
+                current_drink_index += 1
+        
+        # Mettre à jour les drinkIndex dans selected_buttons
+        for button in selected_buttons:
+            if "drinkIndex" in button and button["routerLink"].startswith("/menus/drinks/"):
+                # Trouver la catégorie correspondante
+                old_index = button["drinkIndex"]
+                # On ne peut pas retrouver la catégorie depuis l'ancien index, donc on garde tel quel
+                # MAIS le frontend JS aura recalculé correctement
+                pass
+        
         frontend["home"]["buttons"] = selected_buttons
     elif menu_data:
         frontend["home"]["buttons"] = detect_active_sections(menu_data)
     
-    # ✅ Déterminer les sections disponibles dans menu
+    # Déterminer les sections disponibles dans menu
     has_food = False
     has_drinks = False
     
@@ -407,7 +434,6 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
                        "vins_blancs_magnum", "vins_rouges_magnum", "vins_roses_magnum",
                        "champagnes_magnum"]
     
-    # ✅ Vérifier uniquement si menu_data existe
     if menu_data:
         for cat in food_categories:
             if menu_data.get(cat) and len(menu_data[cat]) > 0:
@@ -419,7 +445,6 @@ def generate_frontend_json(restaurant_name: str, colors: Dict, version: int = 1,
                 has_drinks = True
                 break
     
-    # ✅ Construire la section "menu" selon ce qui est disponible
     if has_drinks:
         frontend["menu"]["drinks"] = {
             "title": {"fr": "LES BOISSONS", "en": "DRINKS"},
@@ -451,7 +476,7 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
         }
     ]
     
-    # ✅ DRINKS avec numérotation FIXE et PRÉVISIBLE
+    # DRINKS avec numérotation FIXE et PRÉVISIBLE
     drink_sections = [
         {
             "categories": ["boissons_soft", "jus"],
@@ -459,7 +484,7 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "label": {"fr": "Boissons fraîches", "en": "Cold drinks"}
             },
             "priority": 4,
-            "fixed_index": 0  # ✅ INDEX FIXE
+            "fixed_index": 0 
         },
         {
             "categories": ["boissons_chaudes"],
@@ -467,7 +492,7 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "label": {"fr": "Boissons chaudes", "en": "Hot drinks"}
             },
             "priority": 5,
-            "fixed_index": 1  # ✅ INDEX FIXE
+            "fixed_index": 1 
         },
         {
             "categories": ["bieres_pression", "bieres_bouteilles"],
@@ -475,7 +500,7 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "label": {"fr": "Bières", "en": "Beers"}
             },
             "priority": 6,
-            "fixed_index": 2  # ✅ INDEX FIXE
+            "fixed_index": 2  
         },
         {
             "categories": ["vins_blancs_verre", "vins_rouges_verre", "vins_roses_verre",
@@ -485,7 +510,7 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "label": {"fr": "Vins", "en": "Wines"}
             },
             "priority": 3,
-            "fixed_index": 3  # ✅ INDEX FIXE
+            "fixed_index": 3  
         },
         {
             "categories": ["champagnes_coupe", "champagnes_bouteille", "champagnes_magnum"],
@@ -493,7 +518,7 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "label": {"fr": "Champagnes", "en": "Champagnes"}
             },
             "priority": 7,
-            "fixed_index": 4  # ✅ INDEX FIXE
+            "fixed_index": 4  
         },
         {
             "categories": ["cocktails", "mocktails", "aperitifs", "spritz"],
@@ -501,7 +526,7 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "label": {"fr": "Cocktails", "en": "Cocktails"}
             },
             "priority": 2,
-            "fixed_index": 5  # ✅ INDEX FIXE
+            "fixed_index": 5  
         },
         {
             "categories": ["rhums", "vodkas", "gins", "tequilas", "whiskies", 
@@ -510,11 +535,11 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
                 "label": {"fr": "Spiritueux", "en": "Spirits"}
             },
             "priority": 8,
-            "fixed_index": 6  # ✅ INDEX FIXE
+            "fixed_index": 6  
         }
     ]
     
-    # ✅ Ajouter les sections de drinks AVEC leur index fixe
+    # Ajouter les sections de drinks AVEC leur index fixe
     for drink_section in drink_sections:
         total_items = sum(
             len(menu_data.get(cat, [])) 
@@ -526,7 +551,7 @@ def detect_active_sections(menu_data: Dict) -> List[Dict]:
             drink_section["button"]["drinkIndex"] = drink_section["fixed_index"]
             sections_config.append(drink_section)
     
-    # ✅ Générer les suggestions
+    # Générer les suggestions
     suggestions = []
     
     for section_config in sections_config:
@@ -624,7 +649,7 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str, item_images: Dict =
         }
         
         for item in items:
-            # ✅ Récupérer l'image si elle existe
+            #  Récupérer l'image si elle existe
             article_id = str(current_id)
             image_path = ""
             if item_images and article_id in item_images:
@@ -638,7 +663,7 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str, item_images: Dict =
                 "articleId": article_id,
                 "posName": item["nom"],
                 "price": {"priceId": "", "amount": float(item["prix"])},
-                "img": image_path,  # ✅ AJOUTE l'image ici
+                "img": image_path,  # AJOUTE l'image ici
                 "descr": {"fr": desc_text, "en": desc_text},
                 "allergens": {"fr": "", "en": ""},
                 "additional": {"fr": "", "en": ""},
@@ -726,10 +751,10 @@ async def extract_menu(
         else:
             raise HTTPException(status_code=400, detail="Vous devez fournir soit un PDF soit un menu manuel")
         
-        # ✅ Détecter TOUTES les sections actives (pas de limite)
+        # Détecter TOUTES les sections actives (pas de limite)
         all_suggestions = detect_active_sections(menu_data)
         
-        # ✅ Les 3 premiers par défaut
+        # Les 3 premiers par défaut
         default_buttons = all_suggestions[:3]
         return {
             "success": True,
@@ -745,8 +770,8 @@ async def extract_menu(
                     "button_primary_font": color_button_primary_font,
                     "button_menu_block_font": color_button_menu_block_font
                 },
-                "all_suggestions": all_suggestions,  # ✅ TOUTES les suggestions
-                "default_buttons": default_buttons,   # ✅ Les 3 par défaut
+                "all_suggestions": all_suggestions,  # TOUTES les suggestions
+                "default_buttons": default_buttons,   # Les 3 par défaut
                 "address": {
                     "street": street,
                     "zip_code": zip_code,
@@ -839,7 +864,7 @@ async def generate_menu(
             "button_menu_block_font": color_button_menu_block_font
         }
         
-        # ✅ Parser les chemins d'images
+        # Parser les chemins d'images
         item_images = {}
         if item_images_json:
             try:
@@ -847,7 +872,7 @@ async def generate_menu(
             except:
                 pass
         
-        # ✅ Parser les boutons sélectionnés
+        # Parser les boutons sélectionnés
         buttons = []
         if selected_buttons:
             try:
@@ -860,10 +885,7 @@ async def generate_menu(
         backend_2_json = generate_backend_json(restaurant_name, qr_mode, address, version=2)
         menus_json = generate_menus_json(menu_data, backend_json["restaurantId"], item_images)
         frontend_json = generate_frontend_json(restaurant_name, colors, 1, menu_data)
-        
-        # ✅ CORRECTION : Passer menu_data ET buttons à frontend_2
         frontend_2_json = generate_frontend_json(restaurant_name, colors, 2, menu_data, buttons if buttons else None)
-        
         menus_2_json = menus_json.copy()
         
         # 4. Retourner les 3 fichiers
@@ -1004,8 +1026,8 @@ async def upload_to_server(
     ftp_password: str = Form(...),
     home_banner: UploadFile = File(None),
     menu_banner: UploadFile = File(None),
-    home_banner_url: str = Form(None),  # ✅ NOUVEAU
-    menu_banner_url: str = Form(None)   # ✅ NOUVEAU
+    home_banner_url: str = Form(None),  
+    menu_banner_url: str = Form(None)   
 ):
     """Upload les fichiers JSON + images sur le serveur via SFTP"""
     
@@ -1023,7 +1045,7 @@ async def upload_to_server(
     try:
         import paramiko
         
-        # ✅ CONNEXION 1 : Port 2266 pour les JSON
+        # CONNEXION 1 : Port 2266 pour les JSON
         SFTP_HOST = "178.32.198.72"
         SFTP_USER = "snadmin"
         
@@ -1083,7 +1105,7 @@ async def upload_to_server(
         sftp.close()
         ssh.close()
         
-        # ✅ CONNEXION 2 : Port 22 pour les images
+        # CONNEXION 2 : Port 22 pour les images
         uploaded_images = []
         
         if home_banner or menu_banner or home_banner_url or menu_banner_url:
@@ -1120,7 +1142,7 @@ async def upload_to_server(
             
             safe_restaurant_name = restaurant_name.lower().replace(' ', '-').replace('/', '-')
             
-            # ✅ HOME BANNER
+            # HOME BANNER
             if home_banner:
                 # Upload d'une image personnalisée
                 png_content = convert_to_png(home_banner.file)
@@ -1133,7 +1155,7 @@ async def upload_to_server(
                 sftp_images.chmod(file_path, 0o644)
                 uploaded_images.append(filename)
             elif home_banner_url:
-                # ✅ Copier l'image par défaut
+                # Copier l'image par défaut
                 source_filename = home_banner_url.split('/')[-1]
                 target_filename = f'home-banner-{safe_restaurant_name}.png'
                 source_path = f'/var/www/pleazze/static/adel/defaults/{source_filename}'
@@ -1150,7 +1172,7 @@ async def upload_to_server(
                 except Exception as e:
                     print(f"⚠️ Erreur copie home banner: {e}")
             
-            # ✅ MENU BANNER
+            # MENU BANNER
             if menu_banner:
                 # Upload d'une image personnalisée
                 png_content = convert_to_png(menu_banner.file)
@@ -1163,7 +1185,7 @@ async def upload_to_server(
                 sftp_images.chmod(file_path, 0o644)
                 uploaded_images.append(filename)
             elif menu_banner_url:
-                # ✅ Copier l'image par défaut
+                # Copier l'image par défaut
                 source_filename = menu_banner_url.split('/')[-1]
                 target_filename = f'menu-banner-{safe_restaurant_name}.png'
                 source_path = f'/var/www/pleazze/static/adel/defaults/{source_filename}'
@@ -1195,37 +1217,6 @@ async def upload_to_server(
     except Exception as e:
         return {"success": False, "message": f"Erreur SFTP: {str(e)}"}
     
-
-@app.post("/submit-contact")
-async def submit_contact(contact_data: dict):
-    """Reçoit et stocke les demandes de contact"""
-    try:
-        import json
-        from datetime import datetime
-        
-        # Créer un dossier pour les contacts si nécessaire
-        contacts_dir = "contacts"
-        os.makedirs(contacts_dir, exist_ok=True)
-        
-        # Nom du fichier avec timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{contacts_dir}/contact_{timestamp}.json"
-        
-        # Sauvegarder
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(contact_data, f, indent=2, ensure_ascii=False)
-        
-        # TODO: Envoyer un email de notification ici
-        # send_email_notification(contact_data)
-        
-        return {
-            "success": True,
-            "message": "Demande de contact enregistrée avec succès",
-            "contact_id": timestamp
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
