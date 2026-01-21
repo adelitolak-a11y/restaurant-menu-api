@@ -657,15 +657,20 @@ def generate_menus_json(menu_data: Dict, restaurant_id: str, item_images: Dict =
             
             desc_value = item.get("description", False)
             desc_text = "" if (desc_value is False or not desc_value or desc_value == item["nom"]) else desc_value
+
+            # ✅ NOUVEAU : Gérer les allergènes
+            allergens_value = item.get("allergens", False)
+            allergens_text = "" if (allergens_value is False or not allergens_value) else allergens_value
+            
             
             article = {
                 "name": {"fr": item["nom"], "en": item["nom"]},
                 "articleId": article_id,
                 "posName": item["nom"],
                 "price": {"priceId": "", "amount": float(item["prix"])},
-                "img": image_path,  # AJOUTE l'image ici
+                "img": image_path,
                 "descr": {"fr": desc_text, "en": desc_text},
-                "allergens": {"fr": "", "en": ""},
+                "allergens": {"fr": allergens_text, "en": allergens_text}, # ✅ MODIFIÉ
                 "additional": {"fr": "", "en": ""},
                 "wine_pairing": {"fr": "", "en": ""},
                 "options": [],
